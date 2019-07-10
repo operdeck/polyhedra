@@ -14,16 +14,6 @@ deltaEquals <- function(x, y, delta = 1e-6)
   return(abs(x-y)<delta)
 }
 
-cube.vertices <- expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1))
-cube.d <- distance(cube.vertices[1,], cube.vertices[2, ])
-cube.facesperedge <- 3
-cube.polygonsize <- 4
-
-octahedron.vertices <- rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1)))
-octahedron.d <- distance(octahedron.vertices[1,], octahedron.vertices[3, ])
-octahedron.facesperedge <- 4
-octahedron.polygonsize <- 3
-
 #rgl.spheres(vertices$x, vertices$y, vertices$z, r=0.2, color="yellow")
 #rgl.texts(vertices$x, vertices$y, vertices$z, text = seq(nrow(vertices)), color="red")
 
@@ -33,7 +23,7 @@ drawPoly <- function(p)
   rgl.texts(p$vertices$x, p$vertices$y, p$vertices$z, text = seq(nrow(p$vertices)), color="blue")
   if (length(p$faces) > 0) {
     for (f in seq(length(p$faces))) {
-      # triangulize, draw triangles between center of face and all edges
+      # triangulize: draw triangles between center of face and all edges
       cx = mean(p$vertices$x[p$faces[[f]]])
       cy = mean(p$vertices$y[p$faces[[f]]])
       cz = mean(p$vertices$z[p$faces[[f]]])
@@ -41,7 +31,7 @@ drawPoly <- function(p)
         p1 <- p$faces[[f]][t]
         p2 <- p$faces[[f]][(t %% length(p$faces[[f]])) + 1]
         # NB not sure about the orientation of the triangle - may have to check on this
-        triangles3d( c(p$vertices$x[c(p1,p2)],cx), c(p$vertices$y[c(p1,p2)],cy), c(p$vertices$z[c(p1,p2)],cz))
+        triangles3d( c(p$vertices$x[c(p1,p2)],cx), c(p$vertices$y[c(p1,p2)],cy), c(p$vertices$z[c(p1,p2)],cz), col="red")
       }
     }
   }
@@ -117,33 +107,78 @@ buildFace <- function(p, aFace = c())
   return(NULL)
 }
 
-poly <- list(vertices = octahedron.vertices,
-             faces = list(),
-             edgesize = octahedron.d,
-             facesperedge = octahedron.facesperedge,
-             polygonsize = octahedron.polygonsize)
-
-repeat {
-  # Check if there's any not fully occupied vertices
-  freeVertices <- which( sapply(seq(nrow(poly$vertices)), function(i) { sum(unlist(poly$faces) == i)}) < poly$facesperedge )
-  if (length(freeVertices) == 0) {
-    print("All done!")
-    cat("The polyhedron has", length(poly$faces), "faces,", length(poly$faces)*poly$polygonsize/2, "edges,", nrow(poly$vertices), "vertices", fill = T)
-    break
-  }
-
-  cat("Building face:", length(poly$faces) + 1, fill=T)
+buildPoly <- function(poly)
+{
+  repeat {
+    # Check if there's any not fully occupied vertices
+    freeVertices <- which( sapply(seq(nrow(poly$vertices)), function(i) { sum(unlist(poly$faces) == i)}) < poly$facesperedge )
+    if (length(freeVertices) == 0) {
+      print("All done!")
+      cat("The polyhedron has", length(poly$faces), "faces,", length(poly$faces)*poly$polygonsize/2, "edges,", nrow(poly$vertices), "vertices", fill = T)
+      return(poly)
+    }
   
-  f <- buildFace(poly)
-  print(f)
-  
-  if (!is.null(f)) {
-    poly$faces[[length(poly$faces) + 1]] <- f
-    drawPoly(poly)
-  } else {
-    print("Can't construct polygon!")
-    break
-  }
-} 
+    cat("Building face:", length(poly$faces) + 1, fill=T)
+    
+    f <- buildFace(poly)
+    print(f)
+    
+    if (!is.null(f)) {
+      poly$faces[[length(poly$faces) + 1]] <- f
+      drawPoly(poly)
+    } else {
+      print("Can't construct polygon!")
+      break
+    }
+  } 
+}
+
+tetrahedron <- buildPoly(list(vertices = rbind(data.frame(x=1, y=1, z=1), data.frame(x=1, y=-1, z=-1), data.frame(x=-1, y=1, z=-1), data.frame(x=-1, y=-1, z=1)),
+                              faces = list(),
+                              edgesize = sqrt(8),
+                              facesperedge = 3,
+                              polygonsize = 3))
+
+# cube.vertices <- expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1))
+# cube.d <- distance(cube.vertices[1,], cube.vertices[2, ])
+# cube.facesperedge <- 3
+# cube.polygonsize <- 4
+
+# octahedron.vertices <- rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1)))
+# octahedron.d <- distance(octahedron.vertices[1,], octahedron.vertices[3, ])
+# octahedron.facesperedge <- 4
+# octahedron.polygonsize <- 3
+
+octahedron <- buildPoly(list(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
+                              faces = list(),
+                              edgesize = sqrt(2),
+                              facesperedge = 4,
+                              polygonsize = 3))
+
+# poly <- list(vertices = octahedron.vertices,
+#              faces = list(),
+#              edgesize = sqrt(2),
+#              facesperedge = 4,
+#              polygonsize = 3)
+# 
+# poly <- list(vertices = tetrahedron.vertices,
+#              faces = list(),
+#              edgesize = sqrt(8),
+#              facesperedge = tetrahedron.facesperedge,
+#              polygonsize = tetrahedron.polygonsize)
+
+#drawPoly(poly)
+
+# Build up our base polyhedra
+
+
+
+# NB we do not need more than triangular base polyhedra
+# if we can do inverse
+
+
+# cube <- inversePoly(octahedron)
+
+# then compose etc will be interesting
 
 
