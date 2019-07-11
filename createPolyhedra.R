@@ -96,7 +96,12 @@ drawPoly <- function(p, x=0, y=0, z=0, label="")
 
 
 
-
+crossProduct <- function(ab, ac){
+  abci = ab$y * ac$z - ac$y * ab$z
+  abcj = ac$x * ab$z - ab$x * ac$z
+  abck = ab$x * ac$y - ac$x * ab$y
+  return (c(x=abci, y=abcj, z=abck))
+}
 
 # Build up a face from existing vertices in given polygon, within constraints passed in as
 # the number of edges/vertices of this face, number of faces per vertex and the length of
@@ -125,25 +130,27 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
   candidates <- setdiff(which( sapply(seq(nrow(p$vertices)), function(i) { sum(unlist(p$faces) == i)}) < vertexsize ), aFace)
   if (debug) cat("Free vertices:", candidates, fill = T)
   
-  if (length(candidates) == 0) { return(FALSE) }
-  
   # Check vertex right distance to previous point
-  if (length(aFace) > 0) {
+  if (length(candidates) > 0 & length(aFace) > 0) {
     candidates <- candidates[which(deltaEquals(distance(p$vertices[aFace[length(aFace)],], p$vertices[candidates,]), edgelength))]  
     if (debug) cat("Right distance to prev:", candidates, fill = T)
   }
   
   # Check last vertex right distance to first point
-  if (length(aFace) == (polygonsize-1)) {
+  if (length(candidates) > 0 & length(aFace) == (polygonsize-1)) {
     candidates <- candidates[which(deltaEquals(distance(p$vertices[aFace[1],], p$vertices[candidates,]), edgelength))]  
     if (debug) cat("Right distance to first:", candidates, fill = T)
   }
   
-  # TODO:  
-  # for polysize > 3 check they're all in the same plane
-  # any further points need to be in the same plane
-  # plane can be formed after 3 pts https://mathinsight.org/forming_planes
-  # dist to plane: https://mathinsight.org/distance_point_plane
+  # Check if the 4th and further points are in the same plane as the first 3
+  if (length(candidates) > 0 & length(aFace) >= 3) {
+    # create cross product from the two vectors from the first 3 points to get the normal to the plane described by these 3 points
+    normal <- crossProduct(p$vertices[aFace[2],]-p$vertices[aFace[1],], p$vertices[aFace[3],]-p$vertices[aFace[1],])
+    
+    # then the inner product of n with the vector of any of those to a given point is 0 when in the same plane
+    candidates <- candidates[which(deltaEquals(normal %*% apply(p$vertices[candidates,], 1, function(x) {return(x-unlist(p$vertices[aFace[1],]))}), 0))]
+    if (debug) cat("In the same plane as the first three:", candidates, fill = T)
+  }
   
   # Loop over the remaining candidates and try them out
   for (c in candidates) {
@@ -267,7 +274,8 @@ drawPoly(compose(tetrahedron, dual(tetrahedron)), z = -6)
 # seems to work despite not checking faces
 cubedirect <- buildRegularPoly(vertices = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
                                polygonsize = 4,
-                               vertexsize = 3)
+                               vertexsize = 3,
+                               debug=T)
 
 octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
                                polygonsize = 3,
@@ -309,25 +317,36 @@ drawPoly(dodecahedron, x = 6, z = -3, label="Dodecahedron")
 
 drawPoly(compose(icosahedron, dual(icosahedron)), x = 6, z = -6)
 
+greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
+                                      polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6))
+drawPoly(greatDodecahedron, x = 9, label="Great Dodecahedron")
+
+# the dual of this - doesnt work! strange - maybe because of {5/2} faces that occur, should be smallStellatedDodecahedron
+#drawPoly(dual(greatDodecahedron)) 
+
+smallStellatedDodecahedron <- buildRegularPoly(icosahedron$vertices,
+                                     polygonsize = 5,
+                                     vertexsize = 5,
+                                     exampleEdge = c(1,7))
+
+drawPoly(smallStellatedDodecahedron, x = 9, z= -3, label="Small Stellated Dodecahedron") # its dual doesnt work either
+
+# drawPoly(compose(smallStellatedDodecahedron, greatDodecahedron)) first is occluded completely by the other
 
 greatIcosahedron <- buildRegularPoly(icosahedron$vertices,
                                      polygonsize = 3,
                                      vertexsize = 5,
                                      exampleEdge = c(2, 6))
-drawPoly(greatIcosahedron, x = 9, label="Great Icosahedron")
+drawPoly(greatIcosahedron, x = 12, label="Great Icosahedron")
 
 greatStellatedDodecahedron <- dual(greatIcosahedron)
-drawPoly(greatStellatedDodecahedron, x = 9, z = -3, label="Great Stellated Dodecahedron")
+drawPoly(greatStellatedDodecahedron, x = 12, z = -3, label="Great Stellated Dodecahedron")
 
-drawPoly(compose(greatStellatedDodecahedron, greatIcosahedron), x = 9, z = -6)
+drawPoly(compose(greatStellatedDodecahedron, greatIcosahedron), x = 12, z = -6)
 
-# NB below one not working yet
+
+# NB below one not working yet - why?
 stop()
-
-# this one doesnt work because of violation of face constraint
-greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
-                                      polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6), debug=T)
-
 compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
                                         polygonsize = 3,
                                         vertexsize = 3,
@@ -340,23 +359,6 @@ compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
 # else rainbow
 
 
-crossProduct <- function(ab, ac){
-  abci = ab$y * ac$z - ac$y * ab$z
-  abcj = ac$x * ab$z - ab$x * ac$z
-  abck = ab$x * ac$y - ac$x * ab$y
-  return (c(x=abci, y=abcj, z=abck))
-}
-
-# create cross product from the two vectors from three of the points to get the normal to the plane described by these 3 points
-n <- crossProduct(cubedirect$vertices[3,]-cubedirect$vertices[1,], cubedirect$vertices[5,]-cubedirect$vertices[1,])
-
-# then the inner product of n with the vector of any of those to a given point is 0 when in the same plane
-n %*% unlist(cubedirect$vertices[7,]-cubedirect$vertices[1,]) # 7 is in the same plane
-n %*% unlist(cubedirect$vertices[6,]-cubedirect$vertices[1,]) # but this one is not
-n %*% unlist(cubedirect$vertices[8,]-cubedirect$vertices[1,]) # but this one is not
-
-# or apply directly to a set of vertices that should be tested
-n %*% apply(cubedirect$vertices[1:8,], 1, function(x) {return(x-unlist(cubedirect$vertices[1,]))})
 
 
 
