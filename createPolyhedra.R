@@ -17,22 +17,75 @@ deltaEquals <- function(x, y, delta = 1e-6)
 #rgl.spheres(vertices$x, vertices$y, vertices$z, r=0.2, color="yellow")
 #rgl.texts(vertices$x, vertices$y, vertices$z, text = seq(nrow(vertices)), color="red")
 
-drawPoly <- function(p)
+# Identifies connected faces in given polyhedron (sharing an edge) and puts the face numbers
+# of distinct bodies into separate lists. Useful for color assigment.
+findDistinctBodies <- function(p)
 {
-  rgl.texts(p$vertices$x, p$vertices$y, p$vertices$z, text = seq(nrow(p$vertices)), color="blue")
+  bodies <- list()
+  bodyIndex <- 1
+  bodies[[bodyIndex]] <- c(1) # start with face 1
+  repeat 
+  {
+    i <- 1 # index in list of faces in current body, keeps incrementing while new faces may be added at end of this list
+    repeat
+    {
+      unassigned <- setdiff(1:length(p$faces), unlist(bodies))
+      if (length(unassigned) == 0) break # done, all faces assigned to a body
+      # find faces connect to the face at position i
+      connectedfaces <- unassigned[sapply(unassigned, function(f) {return(length(intersect(p$faces[[f]], 
+                                                                                           p$faces[[bodies[[bodyIndex]][i]]])) > 1)})]
+      if (length(connectedfaces) > 0) {
+        bodies[[bodyIndex]] <- c(bodies[[bodyIndex]], connectedfaces)
+      }
+      i <- i+1
+      if (i > length(bodies[[bodyIndex]])) break # done with all faces in the current body
+    }
+    if (length(unassigned) == 0) break # done, all faces assigned to a body
+    
+    bodyIndex <- bodyIndex + 1
+    bodies[[bodyIndex]] <- unassigned[1]
+  }
+  return(bodies)
+}
+
+# Draw a polygon. Offset is optional.
+drawPoly <- function(p, x=0, y=0, z=0, label="")
+{
+  rgl.texts(x + p$vertices$x, y + p$vertices$y, z + p$vertices$z, text = seq(nrow(p$vertices)), color="blue")
+  if (nchar(label) > 0) {
+    rgl.texts(x, y, z + min(p$vertices$z) - 1, text = label, color = "black")
+  }
   if (length(p$faces) > 0) {
+    bodies <- findDistinctBodies(p)
+    if (length(bodies) > 1) {
+      bodyColors <- rainbow(length(bodies))
+    }
     for (f in seq(length(p$faces))) {
-      # triangulize: draw triangles between center of face and all edges
-      # TODO consider skipping this if already a triangle
-      cx = mean(p$vertices$x[p$faces[[f]]])
-      cy = mean(p$vertices$y[p$faces[[f]]])
-      cz = mean(p$vertices$z[p$faces[[f]]])
-      for (t in seq(length(p$faces[[f]]))) {
-        p1 <- p$faces[[f]][t]
-        p2 <- p$faces[[f]][(t %% length(p$faces[[f]])) + 1]
+      if (length(bodies) > 1) {
+        faceColor <- bodyColors[which(sapply(bodies, function(b) { return(f %in% b)}))]
+      } else {
+        faceColor <- rainbow(length(p$faces))[f]
+      }
+      if (length(p$faces[[f]]) > 3) { 
+        # for > 3 vertices triangulize: draw triangles between center of face and all edges
+        cx = mean(p$vertices$x[p$faces[[f]]])
+        cy = mean(p$vertices$y[p$faces[[f]]])
+        cz = mean(p$vertices$z[p$faces[[f]]])
+        for (t in seq(length(p$faces[[f]]))) {
+          p1 <- p$faces[[f]][t]
+          p2 <- p$faces[[f]][(t %% length(p$faces[[f]])) + 1]
+          # NB not sure about the orientation of the triangle - may have to check on this
+          triangles3d( x + c(p$vertices$x[c(p1,p2)],cx), 
+                       y + c(p$vertices$y[c(p1,p2)],cy), 
+                       z + c(p$vertices$z[c(p1,p2)],cz), 
+                       col=faceColor) # "red"
+        }
+      } else {
         # NB not sure about the orientation of the triangle - may have to check on this
-        triangles3d( c(p$vertices$x[c(p1,p2)],cx), c(p$vertices$y[c(p1,p2)],cy), c(p$vertices$z[c(p1,p2)],cz), 
-                     col=rainbow(length(p$faces))[f]) # "red"
+        triangles3d( x + p$vertices$x[p$faces[[f]]],
+                     y + p$vertices$y[p$faces[[f]]], 
+                     z + p$vertices$z[p$faces[[f]]], 
+                     col=faceColor)
       }
     }
   }
@@ -184,35 +237,49 @@ dual <- function(p)
   return(poly)
 }
 
+# Combine two polyhedra into one
+compose <- function(p1, p2)
+{
+  return(list(vertices = rbind(p1$vertices, p2$vertices),
+              faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$vertices)) })),
+              n_faces = p1$n_faces + p2$n_faces,
+              n_edges = p1$n_edges + p2$n_edges,
+              n_vertices = p1$n_vertices + p2$n_vertices))
+}
+
+## Gallery
+
 open3d()
 rgl.clear()
+par3d("cex" = 0.7)
 
 tetrahedron <- buildRegularPoly(vertices = rbind(data.frame(x=1, y=1, z=1), data.frame(x=1, y=-1, z=-1), data.frame(x=-1, y=1, z=-1), data.frame(x=-1, y=-1, z=1)),
                                 polygonsize = 3,
                                 vertexsize = 3,
                                 debug = T)
-drawPoly(tetrahedron)
+drawPoly(tetrahedron, label="Tetrahedron")
 
 tetrahedron2 <- dual(tetrahedron)
-drawPoly(tetrahedron2)
+drawPoly(tetrahedron2, z = -3, label="Dual Tetrahedron")
 
-# TODO : compose and identification different bodies
-#tetrahedronWithDual <- compose(tetrahedron, tetrahedron2)
-# identify bodies - list is usually just list of faces - helps colouring
+drawPoly(compose(tetrahedron, dual(tetrahedron)), z = -6)
 
-# cube.vertices <- expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1))
-# cube.d <- distance(cube.vertices[1,], cube.vertices[2, ])
-# cube.vertexsize <- 3
-# cube.polygonsize <- 4
+# seems to work despite not checking faces
+cubedirect <- buildRegularPoly(vertices = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
+                               polygonsize = 4,
+                               vertexsize = 3)
 
 octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
                                polygonsize = 3,
                                vertexsize = 4,
                                exampleEdge = c(1,3))
-drawPoly(octahedron)
+drawPoly(octahedron, x = 3, label="Octahedron")
 
 cube <- dual(octahedron)
-drawPoly(cube)
+drawPoly(cube, x = 3, z = -3, label="Cube")
+
+cubeWithDual <- compose(cube, octahedron)
+drawPoly(cubeWithDual, x = 3, z = -6)
 
 # all coords taken from https://en.wikipedia.org/wiki/Platonic_solid
 phi <- (1+sqrt(5))/2
@@ -234,42 +301,63 @@ icosahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = 0, y = c(-1,1),
                                 vertexsize = 5,
                                 debug = F)
 
-drawPoly(icosahedron)
+
+drawPoly(icosahedron, x = 6, label="Icosahedron")
 
 dodecahedron <- dual(icosahedron)
-drawPoly(dodecahedron)
+drawPoly(dodecahedron, x = 6, z = -3, label="Dodecahedron")
+
+drawPoly(compose(icosahedron, dual(icosahedron)), x = 6, z = -6)
+
 
 greatIcosahedron <- buildRegularPoly(icosahedron$vertices,
                                      polygonsize = 3,
                                      vertexsize = 5,
                                      exampleEdge = c(2, 6))
-drawPoly(greatIcosahedron)
+drawPoly(greatIcosahedron, x = 9, label="Great Icosahedron")
 
 greatStellatedDodecahedron <- dual(greatIcosahedron)
-drawPoly(greatStellatedDodecahedron)
+drawPoly(greatStellatedDodecahedron, x = 9, z = -3, label="Great Stellated Dodecahedron")
+
+drawPoly(compose(greatStellatedDodecahedron, greatIcosahedron), x = 9, z = -6)
 
 # NB below one not working yet
+stop()
+
+# this one doesnt work because of violation of face constraint
+greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
+                                      polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6), debug=T)
+
 compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
                                         polygonsize = 3,
                                         vertexsize = 3,
                                         exampleEdge = c(8, 15), debug = T)
-# Build up our base polyhedra
-
-
-
-# NB we do not need more than triangular base polyhedra
-# if we can do inverse
-
-
-# cube <- inversePoly(octahedron)
-
-# then compose etc will be interesting
-
 # rgl.close()
 
 # colouring
 # if there multiple bodies -> each its own color
 # else if there are multiple types of faces -> each its own color
 # else rainbow
+
+
+crossProduct <- function(ab, ac){
+  abci = ab$y * ac$z - ac$y * ab$z
+  abcj = ac$x * ab$z - ab$x * ac$z
+  abck = ab$x * ac$y - ac$x * ab$y
+  return (c(x=abci, y=abcj, z=abck))
+}
+
+# create cross product from the two vectors from three of the points to get the normal to the plane described by these 3 points
+n <- crossProduct(cubedirect$vertices[3,]-cubedirect$vertices[1,], cubedirect$vertices[5,]-cubedirect$vertices[1,])
+
+# then the inner product of n with the vector of any of those to a given point is 0 when in the same plane
+n %*% unlist(cubedirect$vertices[7,]-cubedirect$vertices[1,]) # 7 is in the same plane
+n %*% unlist(cubedirect$vertices[6,]-cubedirect$vertices[1,]) # but this one is not
+n %*% unlist(cubedirect$vertices[8,]-cubedirect$vertices[1,]) # but this one is not
+
+# or apply directly to a set of vertices that should be tested
+n %*% apply(cubedirect$vertices[1:8,], 1, function(x) {return(x-unlist(cubedirect$vertices[1,]))})
+
+
 
 
