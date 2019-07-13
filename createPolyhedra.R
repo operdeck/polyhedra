@@ -48,10 +48,21 @@ findDistinctBodies <- function(p)
   return(bodies)
 }
 
-# Draw a polygon. Offset is optional.
-drawPoly <- function(p, x=0, y=0, z=0, label="")
+# shift elements from f one up or down
+# NB could be generalized to shift more than 1 but not needed here
+shift <- function(f, direction = 1)
 {
-  rgl.texts(x + p$vertices$x, y + p$vertices$y, z + p$vertices$z, text = seq(nrow(p$vertices)), color="blue")
+  if (length(f) < 2) return(f)
+  if (direction == 1) return (f[c(2:length(f),1)])
+  return(f[c(length(f),1:(length(f)-1))])
+}
+
+# Draw a polygon. Offset is optional.
+drawPoly <- function(p, x=0, y=0, z=0, label="", debug=F)
+{
+  if (debug) {
+    rgl.texts(x + p$vertices$x, y + p$vertices$y, z + p$vertices$z, text = seq(nrow(p$vertices)), color="blue")
+  }
   if (nchar(label) > 0) {
     rgl.texts(x, y, z + min(p$vertices$z) - 1, text = label, color = "black")
   }
@@ -71,9 +82,10 @@ drawPoly <- function(p, x=0, y=0, z=0, label="")
         cx = mean(p$vertices$x[p$faces[[f]]])
         cy = mean(p$vertices$y[p$faces[[f]]])
         cz = mean(p$vertices$z[p$faces[[f]]])
+        rotatedFace <- shift(p$faces[[f]])
         for (t in seq(length(p$faces[[f]]))) {
           p1 <- p$faces[[f]][t]
-          p2 <- p$faces[[f]][(t %% length(p$faces[[f]])) + 1]
+          p2 <- rotatedFace[t]
           # NB not sure about the orientation of the triangle - may have to check on this
           triangles3d( x + c(p$vertices$x[c(p1,p2)],cx), 
                        y + c(p$vertices$y[c(p1,p2)],cy), 
@@ -108,19 +120,35 @@ crossProduct <- function(ab, ac){
 # an edge. The face does not need to be regular but will have all edges of the same length.
 buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug = F)
 {
-  if (debug) print(aFace)
+  if (debug) cat("Face", aFace, fill=T)
   
-  # If we're done, verify that the face is not already in the polygon
+  # Bail out if face has 3 vertices and those already exist in one of the polygon's faces
+  if (length(aFace) == 3 & length(p$faces) > 0) {
+    if (any( sapply( seq(length(p$faces)), function(f) { return (length(intersect(aFace, p$faces[[f]])))}) == 3 )) {
+      if (debug) cat("Same plane as an existing face", fill=T)
+      return(NULL)
+    }
+  }
+  
+  # Otherwise, we may be done
   if (length(aFace) == polygonsize) {
+    
+    # Final check: if (first) 3 points of a face are in aFace then not good
     if (length(p$faces) > 0) {
-      c1 <- sort(aFace)
-      for (f in seq(length(p$faces))) {
-        if (identical(c1, sort(p$faces[[f]]))) {
-          if (debug) cat("Duplicate", fill=T)
+      # create cross product from the two vectors from the first 3 points to get the normal to the plane described by these 3 points
+      normal <- crossProduct(p$vertices[aFace[2],]-p$vertices[aFace[1],], p$vertices[aFace[3],]-p$vertices[aFace[1],])
+      
+      for (f in p$faces) {
+        verticesInNewPlane <- deltaEquals(normal %*% apply(p$vertices[f,], 1, function(x) {return(x-unlist(p$vertices[aFace[1],]))}), 0)
+        if (sum(verticesInNewPlane) >= 3) {
+          if (debug) {
+            cat("Existing face", f, "has 3 or more points in same plane as new face", aFace, fill=T)
+          }
           return(NULL)
         }
       }
-    }
+    }    
+    
     if (debug) cat("Face complete", fill=T)
     # consider turning it upside down here to normalize the normal
     return(aFace)
@@ -161,6 +189,22 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
   return(NULL)
 }
 
+# # List the edges of a polygon
+# listEdges <- function(p)
+# {
+#   m <- matrix(data = 0, nrow = nrow(p$vertices), ncol = nrow(p$vertices))
+#   for (f in p$faces) {
+#     f1 <- shift(f)
+#     print(f)
+#     sapply(seq(length(f)), function(i) { 
+#       print(i)
+#       m[f[i], f1[i]] <- m[f[i], f1[i]] + 1 
+#       m[f1[i], f[i]] <- m[f1[i], f[i]] + 1
+#     })
+#   }
+#   return(m)
+# }
+
 # Build a polygon given a set of vertices (full x, y, z coordinates), the two vertices
 # of an example edge (used to determine the global edge size of this polyhedron)
 buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(1,2), debug=F)
@@ -173,6 +217,7 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
   
   # Add new faces one by one until all vertices have the specified number of faces
   poly <- list(vertices = vertices, faces = list())
+  edges <- matrix(data = 0, nrow = nrow(vertices), ncol = nrow(vertices))
   repeat {
     # Check if there's any not fully occupied vertices
     freeVertices <- which( sapply(seq(nrow(poly$vertices)), function(i) { sum(unlist(poly$faces) == i)}) < vertexsize )
@@ -183,12 +228,32 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
     
     if (debug) cat("Building face:", length(poly$faces) + 1, fill=T)
     
-    f <- buildFace(poly, polygonsize, vertexsize, edgelength, debug = debug)
+    # Find existing edges in the poly that do not have two faces attached to it yet
+    # pass in the first of such as the seed for the new face. This ensures that we first
+    # finish bodies that are partially constructed.
+    
+    startEdgesX <- which(apply(edges, 1, function(nConnectedFaces) {return(any(nConnectedFaces==1))} ))
+    if (length(startEdgesX) > 0) {
+      e1 <- startEdgesX[1]
+      e2 <- which(edges[e1,] == 1)[1] # must be one
+      if (is.na(e2)) {
+        stop("Not good")
+      }
+      if (debug) cat("Starting with edge", e1, "-", e2, fill=T)
+      f <- buildFace(poly, polygonsize, vertexsize, edgelength, aFace = c(e1, e2), debug = debug)
+    } else {
+      f <- buildFace(poly, polygonsize, vertexsize, edgelength, debug = debug)
+    }
+    
     if (debug) print(f)
     
     if (!is.null(f)) {
       poly$faces[[length(poly$faces) + 1]] <- f
-      if (debug) drawPoly(poly)
+      for (i in seq(length(f))) {
+        edges[f[i], shift(f)[i]] <- 1 + edges[f[i], shift(f)[i]]
+        edges[shift(f)[i], f[i]] <- 1 + edges[shift(f)[i], f[i]]
+      }
+      if (debug) drawPoly(poly, debug=T)
     } else {
       if (debug) print("Can't construct polygon!")
       poly$faces <- list()
@@ -203,13 +268,17 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
   return(poly)
 }
 
+# TODO: dual of some doesnt work, maybe the ones with pentagons
+# the dual of this - doesnt work! strange - maybe because of {5/2} faces that occur, should be smallStellatedDodecahedron
+#drawPoly(dual(greatDodecahedron)) 
 
 # Create dual polygon from given. Vertices become faces and vice versa.
 dual <- function(p)
 {
   # for every face, calculate the midpoint
   newVertices <- as.data.frame(t(sapply(seq(length(p$faces)), function(f) { apply(p$vertices[p$faces[[f]],], 2, mean) })))
-  # rescale to unit lenth (NB may not apply to all inverses - TODO reconsider)
+  # rescale to unit lenth (NB may not apply to all inverses - TODO reconsider, maybe they should
+  # be scaled while building the new faces, to have the same length as the length of the current points around it.
   newVertices <- newVertices / apply(newVertices, 1, function(r) { sqrt(sum(r^2)) })
   # vertices become the new faces
   newFaces <- list()
@@ -266,16 +335,14 @@ tetrahedron <- buildRegularPoly(vertices = rbind(data.frame(x=1, y=1, z=1), data
                                 debug = T)
 drawPoly(tetrahedron, label="Tetrahedron")
 
-tetrahedron2 <- dual(tetrahedron)
-drawPoly(tetrahedron2, z = -3, label="Dual Tetrahedron")
+drawPoly(dual(tetrahedron), z = -3, label="Dual Tetrahedron")
 
 drawPoly(compose(tetrahedron, dual(tetrahedron)), z = -6)
 
-# seems to work despite not checking faces
-cubedirect <- buildRegularPoly(vertices = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
-                               polygonsize = 4,
-                               vertexsize = 3,
-                               debug=T)
+# cubedirect <- buildRegularPoly(vertices = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
+#                                polygonsize = 4,
+#                                vertexsize = 3,
+#                                debug=T)
 
 octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
                                polygonsize = 3,
@@ -345,13 +412,27 @@ drawPoly(greatStellatedDodecahedron, x = 12, z = -3, label="Great Stellated Dode
 drawPoly(compose(greatStellatedDodecahedron, greatIcosahedron), x = 12, z = -6)
 
 
-# NB below one not working yet - why?
-stop()
 compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
                                         polygonsize = 3,
                                         vertexsize = 3,
-                                        exampleEdge = c(8, 15), debug = T)
+                                        exampleEdge = c(3, 8))
+
+drawPoly(compound5tetrahedra, x = 0, y = -3, label="Compound of 5 tetrahedra")
+drawPoly(dual(compound5tetrahedra), x = 0, y = -3, z = -3, label="Dual of 5 tetrahedra")
+# below does not look entirely OK
+# see https://en.wikipedia.org/wiki/Polytope_compound
+drawPoly(compose(compound5tetrahedra, dual(compound5tetrahedra)), x = 0, y = -3, z = -6, 
+         label="Compound of 10 tetrahedra")
+
+# drawPoly(dodecahedron, debug=T)
+compound10Cubes <- buildRegularPoly(dodecahedron$vertices,
+                                    polygonsize = 4,
+                                    vertexsize = 6,
+                                    exampleEdge = c(1, 8))
+drawPoly(compound10Cubes, x = 3, y = -3, label="Compound of 5 tetrahedra")
+
 # rgl.close()
+
 
 # colouring
 # if there multiple bodies -> each its own color
