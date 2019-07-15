@@ -1,5 +1,7 @@
 # Functions specifically to constructing polyhedra
 
+source("math.R")
+
 # shift elements from f one up or down
 # NB could be generalized to shift more than 1 but not needed here
 shift <- function(f, direction = 1)
@@ -9,6 +11,13 @@ shift <- function(f, direction = 1)
   return(f[c(length(f),1:(length(f)-1))])
 }
 
+# Returns T if outward facing
+isNormalOutwardFacing <- function(p, f)
+{
+  n <- normal( p$vertices[f[1],], p$vertices[f[2],], p$vertices[f[3],] )
+  mid <- apply(p$vertices[f,],2,mean)
+  return (vectorlength(mid+n) > vectorlength(mid-n))
+}
 
 # Identifies connected faces in given polyhedron (i.e. polygons sharing an edge) and puts 
 # the face numbers of distinct bodies into separate lists. Useful for color assigment.
@@ -76,6 +85,13 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
     }    
     
     if (debug) cat("Face complete", fill=T)
+    
+    # We're done, but just make sure to have the normal face outward
+    if (!isNormalOutwardFacing(p, aFace)) {
+      if (debug) cat("Flip face to make normal outward facing", fill=T)
+      aFace <- rev(aFace)
+    }
+
     # consider turning it upside down here to normalize the normal
     return(aFace)
   }
@@ -237,3 +253,23 @@ compose <- function(p1, p2)
               n_vertices = p1$n_vertices + p2$n_vertices))
 }
 
+
+# # checking the normals of the face
+# p <- octahedron
+# drawPoly(p, debug=T)
+# 
+# #isOutwardFacing <- function()
+# n1 <- normal( p$vertices[p$faces[[1]][1],], p$vertices[p$faces[[1]][2],], p$vertices[p$faces[[1]][3],])
+# m1 <- apply(p$vertices[p$faces[[1]],],2,mean)
+# rgl.lines(c(m1[1], m1[1]+n1[1]), c(m1[2], m1[2]+n1[2]), c(m1[3], m1[3]+n1[3]), color="yellow")
+# sign (vectorlength(m1+n1) - vectorlength(m1-n1)) # if pos then outward facing
+# 
+# n2 <- normal( p$vertices[p$faces[[2]][1],], p$vertices[p$faces[[2]][2],], p$vertices[p$faces[[2]][3],])
+# m2 <- apply(p$vertices[p$faces[[2]],],2,mean)
+# rgl.lines(c(m2[1], m2[1]+n2[1]), c(m2[2], m2[2]+n2[2]), c(m2[3], m2[3]+n1[3]), color="yellow")
+# sign (vectorlength(m2+n2) - vectorlength(m2-n2))
+
+
+# Now that we have the orientation covered, try list the edges in a constructive way so we
+# can build snub, chop, and maybe better duals as well
+# We could test the misbehaving duals with even just a partial polyhedron perhaps

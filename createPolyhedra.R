@@ -10,11 +10,19 @@ source("polyhedra.R")
 #rgl.spheres(vertices$x, vertices$y, vertices$z, r=0.2, color="yellow")
 #rgl.texts(vertices$x, vertices$y, vertices$z, text = seq(nrow(vertices)), color="red")
 
+# 3D tricks (movie, HTML interactive export, points highlighting)
+# http://www.sthda.com/english/wiki/a-complete-guide-to-3d-visualization-device-system-in-r-r-software-and-data-visualization#prepare-the-data
+
 # Draw a polygon. Offset is optional.
 drawPoly <- function(p, x=0, y=0, z=0, label="", debug=F)
 {
   if (debug) {
-    rgl.texts(x + p$vertices$x, y + p$vertices$y, z + p$vertices$z, text = seq(nrow(p$vertices)), color="blue")
+    spacing <- 0.1
+    alpha <- 0.6 # in debug make somewhat transparent
+    spheres3d(x + p$vertices$x, y + p$vertices$y, z + p$vertices$z, color="grey", radius = 0.01)
+    text3d(x + (1+spacing)*p$vertices$x, y + (1+spacing)*p$vertices$y, z + (1+spacing)*p$vertices$z, text = seq(nrow(p$vertices)), color="blue")
+  } else {
+    alpha <- 1
   }
   if (nchar(label) > 0) {
     rgl.texts(x, y, z + min(p$vertices$z) - 1, text = label, color = "black")
@@ -30,11 +38,14 @@ drawPoly <- function(p, x=0, y=0, z=0, label="", debug=F)
       } else {
         faceColor <- rainbow(length(p$faces))[f]
       }
+      cx = mean(p$vertices$x[p$faces[[f]]])
+      cy = mean(p$vertices$y[p$faces[[f]]])
+      cz = mean(p$vertices$z[p$faces[[f]]])
+      if (debug) {
+        text3d(x + cx, y + cy, z + cz, text = paste0("F",f), color="black")
+      }
       if (length(p$faces[[f]]) > 3) { 
         # for > 3 vertices triangulize: draw triangles between center of face and all edges
-        cx = mean(p$vertices$x[p$faces[[f]]])
-        cy = mean(p$vertices$y[p$faces[[f]]])
-        cz = mean(p$vertices$z[p$faces[[f]]])
         rotatedFace <- shift(p$faces[[f]])
         for (t in seq(length(p$faces[[f]]))) {
           p1 <- p$faces[[f]][t]
@@ -43,25 +54,40 @@ drawPoly <- function(p, x=0, y=0, z=0, label="", debug=F)
           triangles3d( x + c(p$vertices$x[c(p1,p2)],cx), 
                        y + c(p$vertices$y[c(p1,p2)],cy), 
                        z + c(p$vertices$z[c(p1,p2)],cz), 
-                       col=faceColor) # "red"
+                       col=faceColor, alpha=alpha) # "red"
         }
       } else {
         # NB not sure about the orientation of the triangle - may have to check on this
         triangles3d( x + p$vertices$x[p$faces[[f]]],
                      y + p$vertices$y[p$faces[[f]]], 
                      z + p$vertices$z[p$faces[[f]]], 
-                     col=faceColor)
+                     col=faceColor, alpha=alpha)
       }
     }
   }
 }
 # rgl.close()
 
+# The function rgl_init() will create a new RGL device if requested or if there is no opened device:
+  
+#' @param new.device a logical value. If TRUE, creates a new device
+#' @param bg the background color of the device
+#' @param width the width of the device
+rgl_init <- function(new.device = FALSE, bg = "white", width = 640) {
+  if( new.device | rgl.cur() == 0 ) {
+    rgl.open()
+    par3d(windowRect = 50 + c( 0, 0, width, width ) )
+    rgl.bg(color = bg )
+  }
+  rgl.clear(type = c("shapes", "bboxdeco"))
+  rgl.viewpoint(theta = 15, phi = 20, zoom = 0.7)
+}
+
 ## Gallery
 
-open3d()
-rgl.clear()
-par3d("cex" = 0.7)
+# open3d()
+# rgl.clear()
+# par3d("cex" = 0.7)
 
 tetrahedron <- buildRegularPoly(vertices = rbind(data.frame(x=1, y=1, z=1), data.frame(x=1, y=-1, z=-1), data.frame(x=-1, y=1, z=-1), data.frame(x=-1, y=-1, z=1)),
                                 polygonsize = 3,

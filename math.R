@@ -21,7 +21,8 @@ normalizedistances <- function(vertices)
 
 normal <- function(point1, point2, point3)
 {
-  return (crossProduct(point2-point1, point3-point1))  
+  n <- crossProduct(point2-point1, point3-point1)
+  return (n / vectorlength(n))
 }
 
 # distance between two points both given as lists
