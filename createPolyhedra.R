@@ -88,6 +88,7 @@ rgl_init <- function(new.device = FALSE, bg = "white", width = 640) {
 # open3d()
 # rgl.clear()
 # par3d("cex" = 0.7)
+rgl_init()
 
 tetrahedron <- buildRegularPoly(vertices = rbind(data.frame(x=1, y=1, z=1), data.frame(x=1, y=-1, z=-1), data.frame(x=-1, y=1, z=-1), data.frame(x=-1, y=-1, z=1)),
                                 polygonsize = 3,
@@ -212,7 +213,36 @@ drawPoly(compound10Cubes, x = 3, y = -3, label="Compound of 10 cubes")
 # else rainbow
 
 
+# movie3d(spin3d(axis = c(1, 1, 1)), duration = 3, dir = getwd())
 
 
+# can we brute-force our way through the possibilities?
+rgl_init()
+p <- dodecahedron #icosahedron
+vexPairs <- combn(x = seq(nrow(p$vertices)), m = 2)
+vexPairs <- data.frame(t(vexPairs), dist=sapply(seq(ncol(vexPairs)), function(col) { return(distance(p$vertices[vexPairs[1,col],], p$vertices[vexPairs[2,col],]))}))
+vexPairs <- vexPairs[order(vexPairs$dist),]
+vexPairs$isUnique <- T
+row.names(vexPairs) <- NULL
+for (i in 2:nrow(vexPairs)) {
+  if (deltaEquals(vexPairs$dist[i-1], vexPairs$dist[i])) { vexPairs$isUnique[i] <- F }
+}
+vexPairs <- vexPairs[(vexPairs$isUnique),] # this is now a short list of vertex index pairs
 
+discovery <- expand.grid(polygonsize = 3:5, vertexsize = 3:20, vexPair = 1:nrow(vexPairs))
+discovery$isPolygon <- F
+for (i in seq(nrow(discovery))) {
+  # NB it also creates polys with holes in it
+  #some of the ones from dodecahedron are new!
+  poly <- buildRegularPoly(p$vertices, discovery$polygonsize[i], discovery$vertexsize[i], c(vexPairs$X1[discovery$vexPair[i]], vexPairs$X2[discovery$vexPair[i]]))
+  if (poly$n_faces > 0) {
+    cat("Success!", discovery$polygonsize[i], discovery$vertexsize[i], vexPairs$X1[discovery$vexPair[i]], vexPairs$X2[discovery$vexPair[i]], fill=T)
+    discovery$isPolygon[i] <- T
+    drawPoly(poly, x=2*sum(discovery$isPolygon), debug=F)
+  }
+}
+# TODO - recover the descriptions from the generated topology
+# using #bodies and eulers formula we should be able to?
+# for one body: F + V − E = 2
+# so must be: F + V − E = 2*B (B = bodies)
 

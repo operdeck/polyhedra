@@ -19,6 +19,8 @@ isNormalOutwardFacing <- function(p, f)
   return (vectorlength(mid+n) > vectorlength(mid-n))
 }
 
+# build up the full topology, given just a list of faces
+
 # Identifies connected faces in given polyhedron (i.e. polygons sharing an edge) and puts 
 # the face numbers of distinct bodies into separate lists. Useful for color assigment.
 findDistinctBodies <- function(p)
