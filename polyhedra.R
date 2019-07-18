@@ -19,38 +19,36 @@ isNormalOutwardFacing <- function(p, f)
   return (vectorlength(mid+n) > vectorlength(mid-n))
 }
 
-# build up the full topology, given just a list of faces
-
-# Identifies connected faces in given polyhedron (i.e. polygons sharing an edge) and puts 
-# the face numbers of distinct bodies into separate lists. Useful for color assigment.
-findDistinctBodies <- function(p)
-{
-  bodies <- list()
-  bodyIndex <- 1
-  bodies[[bodyIndex]] <- c(1) # start with face 1
-  repeat 
-  {
-    i <- 1 # index in list of faces in current body, keeps incrementing while new faces may be added at end of this list
-    repeat
-    {
-      unassigned <- setdiff(1:length(p$faces), unlist(bodies))
-      if (length(unassigned) == 0) break # done, all faces assigned to a body
-      # find faces connect to the face at position i
-      connectedfaces <- unassigned[sapply(unassigned, function(f) {return(length(intersect(p$faces[[f]], 
-                                                                                           p$faces[[bodies[[bodyIndex]][i]]])) > 1)})]
-      if (length(connectedfaces) > 0) {
-        bodies[[bodyIndex]] <- c(bodies[[bodyIndex]], connectedfaces)
-      }
-      i <- i+1
-      if (i > length(bodies[[bodyIndex]])) break # done with all faces in the current body
-    }
-    if (length(unassigned) == 0) break # done, all faces assigned to a body
-    
-    bodyIndex <- bodyIndex + 1
-    bodies[[bodyIndex]] <- unassigned[1]
-  }
-  return(bodies)
-}
+# # Identifies connected faces in given polyhedron (i.e. polygons sharing an edge) and puts 
+# # the face numbers of distinct bodies into separate lists. Useful for color assigment.
+# findDistinctBodies <- function(p)
+# {
+#   bodies <- list()
+#   bodyIndex <- 1
+#   bodies[[bodyIndex]] <- c(1) # start with face 1
+#   repeat 
+#   {
+#     i <- 1 # index in list of faces in current body, keeps incrementing while new faces may be added at end of this list
+#     repeat
+#     {
+#       unassigned <- setdiff(1:length(p$faces), unlist(bodies))
+#       if (length(unassigned) == 0) break # done, all faces assigned to a body
+#       # find faces connect to the face at position i
+#       connectedfaces <- unassigned[sapply(unassigned, function(f) {return(length(intersect(p$faces[[f]], 
+#                                                                                            p$faces[[bodies[[bodyIndex]][i]]])) > 1)})]
+#       if (length(connectedfaces) > 0) {
+#         bodies[[bodyIndex]] <- c(bodies[[bodyIndex]], connectedfaces)
+#       }
+#       i <- i+1
+#       if (i > length(bodies[[bodyIndex]])) break # done with all faces in the current body
+#     }
+#     if (length(unassigned) == 0) break # done, all faces assigned to a body
+#     
+#     bodyIndex <- bodyIndex + 1
+#     bodies[[bodyIndex]] <- unassigned[1]
+#   }
+#   return(bodies)
+# }
 
 # Build up a face from existing vertices in given polygon, within constraints passed in as
 # the number of edges/vertices of this face, number of faces per vertex and the length of
@@ -191,67 +189,180 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
     }
   } 
   
-  # TODO drop these
-  
-  poly[["n_faces"]] <- length(poly$faces)
-  poly[["n_edges"]] <- length(poly$faces) + nrow(poly$vertices) - 2 # Euler's formula
-  poly[["n_vertices"]] <- nrow(poly$vertices)
-  
   return(poly)
 }
 
-
-# TODO: dual of some doesnt work, maybe the ones with pentagons
-# the dual of this - doesnt work! strange - maybe because of {5/2} faces that occur, should be smallStellatedDodecahedron
-#drawPoly(dual(greatDodecahedron)) 
-
-# Create dual polygon from given. Vertices become faces and vice versa.
-dual <- function(p)
+# Derives the topology of a polyhedron based on just a list of faces. Each face consists of a list
+# of references to vertices as everywhere else. The returned structure contains
+#
+# - a square matrix vexToRFace mapping vertex pairs to the index of the face on the right-hand side of it
+# - a square and symetrical matrix vexToEdge mapping vertex pairs to the number (index) of the edge connecting both
+# - an unordered list vexConnections with for every vertex of the polygon (NB in compounds there could be multiple of these for a vertex):
+#       - the index of the center vertex
+#       - the indices of the faces surrounding the vertex (in order)
+#       - the indices of the vertices connected to this vertex (in order)
+getTopology <- function(faces)
 {
-  # for every face, calculate the midpoint
-  newVertices <- as.data.frame(t(sapply(seq(length(p$faces)), function(f) { apply(p$vertices[p$faces[[f]],], 2, mean) })))
-  # rescale to unit lenth (NB may not apply to all inverses - TODO reconsider, maybe they should
-  # be scaled while building the new faces, to have the same length as the length of the current points around it.
-  newVertices <- normalizedistances(newVertices)
+  n_vertices <- max(sapply(faces, max))
   
-  # vertices become the new faces
-  newFaces <- list()
-  for (v in seq(nrow(p$vertices))) {
-    # which faces contain vertex v  
-    connectedFaces <- which(sapply(p$faces, function(f) { return (v %in% f) }))
-    # but they can be in an arbitrary order
-    f1 <- connectedFaces[1]
-    
-    aNewFace <- c()
-    neighbourVertices <- c()
-    for (i in seq(length(connectedFaces))) {
-      # an edge from v along f1 to next point w (so the edge v-w is an edge of f1) - there should be two depending on direction chosen,
-      # then choose the one not already used
-      w_up <- p$faces[[f1]] [(which(p$faces[[f1]] == v) %% 3) + 1]
-      w_down <- p$faces[[f1]] [((which(p$faces[[f1]] == v) + 1 + length(p$faces[[f1]])) %% 3) + 1]
-      w <- ifelse(w_up %in% neighbourVertices, w_down, w_up)
-      # next face is the other face (there can be only 1) that contains v-w or w-v
-      f2 <- setdiff(which(sapply(p$faces, function(f) { return ((w %in% f) & (v %in% f)) })), f1)
-      aNewFace <- c(aNewFace, f1)
-      neighbourVertices <- c(neighbourVertices, w)
-      f1 <- f2
+  vexToEdge <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
+  vexToRFace <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
+  for (currentFaceNr in seq(length(faces))) {
+    currentFace <- faces[[currentFaceNr]]
+    currentFaceS <- shift(currentFace)
+    for (i in seq(length(currentFace))) {
+      # cat("Edge", currentFace[i], "-", currentFaceS[i], "has face", currentFaceNr, "on the right", fill = T)
+      
+      # vexToRFace for a pair [a,b] gives the face number on the right-hand side of edge connection a-b (when looked from above)
+      if (0 != vexToRFace[currentFace[i], currentFaceS[i]]) {
+        stop(paste("Right-hand face for edge", currentFace[i], "-", currentFaceS[i], 
+                   "already present:", vexToRFace[currentFace[i], currentFaceS[i]], 
+                   "while wanting to set to", currentFaceNr,
+                   "is the orientation consistent?"))
+      }
+      vexToRFace[currentFace[i], currentFaceS[i]] <- currentFaceNr
+      
+      # vexToEdge for a pair [a,b] gives the index number of the edge a-b. vexToEdge[a,b] = vexToEdge[b,a]
+      if (0 == vexToEdge[currentFace[i], currentFaceS[i]]) {
+        vexToEdge[currentFaceS[i], currentFace[i]] <- 1+max(vexToEdge)
+        vexToEdge[currentFace[i], currentFaceS[i]] <- vexToEdge[currentFaceS[i], currentFace[i]]
+      }
     }
-    newFaces[[v]] <- aNewFace
   }
-  poly <- list(vertices = newVertices, faces = newFaces)
+
+  # Knowing which edges connect to which faces we can now build up oriented lists of 
+  # faces and eges around any vertex
   
-  # TODO drop these
+  vexConnections <- list()
+  for (startingFace in seq(length(faces))) 
+  {
+    for (centerPoint in faces[[startingFace]])
+    {
+      vexToFaces <- c()
+      vexToVertex <- c()
+      f <- startingFace
+      
+      repeat
+      {
+        vexToFaces <- c(vexToFaces, f) # keep track of an oriented list of connected faces around centerPoint
+        i <- which(faces[[f]] == centerPoint) # index in face f of centerPoint
+        prevPoint <- shift(faces[[f]],-1)[i] # point on an edge of face f that connects to centerPoint
+        vexToVertex <- c(vexToVertex, prevPoint) # keep track of an oriented list of connected points around centerPoint
+        
+        nextPoint <- shift(faces[[f]])[i] # find next face f that connects at edge nextPoint - centerPoint
+        f <- vexToRFace[ nextPoint, centerPoint ]
+        
+        if (f == startingFace) {
+          # check if we don't have this already - not just checking the same center point but also
+          # the set of faces as we could have multiple bodies just sharing a vertex but no faces
+          if (!any(sapply(vexConnections, function(con) { return( centerPoint == con$center &
+                                                                  setequal(vexToFaces, con$faces) &
+                                                                  setequal(vexToVertex, con$vex))})))
+            
+            vexConnections[[1+length(vexConnections)]] <- list(center = centerPoint,
+                                                               faces = vexToFaces,
+                                                               vex = vexToVertex)
+          break
+        }
+      }    
+    }
+  }
   
-  poly[["n_faces"]] <- length(poly$faces)
-  poly[["n_edges"]] <- length(poly$faces) + nrow(poly$vertices) - 2 # Euler's formula
-  poly[["n_vertices"]] <- nrow(poly$vertices)
-  
-  return(poly)
+  return (list(vexToEdge=vexToEdge, vexToRFace=vexToRFace, vexConnections=vexConnections))
 }
+
+# Return list of list of distinct bodies in p. List contains the face indices.
+findDistinctBodies <- function(p, debug=F)
+{
+  topo <- getTopology(p$faces)
+  
+  getConnectedFaces <- function(conn, body, debug=F)
+  {
+    bodycount <- 1
+    repeat {
+      f <- body[bodycount]
+      # vertices around this face
+      vex <- which(sapply(conn, function(c) { return(f %in% c$faces)}))
+      # faces connected to any of these vertices
+      connectedFaces <- unique(as.vector(sapply(vex, function(x) {return(conn[[x]]$faces)})))
+      if (debug) cat("connected faces to", f, ":", paste(connectedFaces, collapse = ", "), fill=T)
+      newFaces <- setdiff(connectedFaces, body)
+      if (debug) cat("new faces:", paste(newFaces, collapse = ", "), fill=T)
+      #if (length(newFaces) == 0) break
+      body <- c(body, newFaces)
+      bodycount <- bodycount + 1
+      if (bodycount > length(body)) break
+    }
+    return(body)
+  }
+  
+  bodies <- list()
+  for (faceIdx in seq(length(p$faces))) {
+    b <- getConnectedFaces(topo$vexConnections, faceIdx)
+    if (!any(sapply(bodies, function(body) {return(setequal(body, b))}))) {
+      bodies[[1+length(bodies)]] <- b
+    }
+  }
+  return(bodies)
+}
+
+
+
+dual <- function(p, debug=F)
+{
+  topo <- getTopology(p$faces)
+  
+  newVertexCoords <- as.data.frame(normalizedistances(t(sapply(p$faces, function(f) { return(apply(p$vertices[f,],2,mean))}))))
+  newFaces <- lapply(topo$vexConnections, function(c) {return(c$faces)})
+  
+  pDual <- list( vertices = newVertexCoords, faces = newFaces)
+  
+  # make sure all faces are oriented consistently
+  for (i in seq(length(pDual$faces))) {
+    if (!isNormalOutwardFacing(pDual, pDual$faces[[i]])) {
+      if (debug) cat("Flip face to make normal outward facing", fill=T)
+      pDual$faces[[i]] <- rev(pDual$faces[[i]])
+    }
+  }
+  
+  return(pDual)
+}
+
+# Create an derived polyhedron by truncating all vertices to the mid of the faces
+archi <- function(p, debug=F)
+{
+  topo <- getTopology(p$faces)
+  
+  # new points are midpoints of all edges ; the index of each edge is obtained using lookup in the vexToEdge matrix
+  archiPoints <- as.data.frame(normalizedistances(t(sapply(seq(max(topo$vexToEdge)), function(e) { 
+    w <- which(topo$vexToEdge==e & upper.tri(topo$vexToEdge)) # shall be one and only one
+    return(apply(p$vertices[c((w - 1) %/% nrow(topo$vexToEdge) + 1, 
+                              (w - 1) %% nrow(topo$vexToEdge) + 1),],2,mean))
+  }))))
+  # one set of faces comes from the vertices neighbouring each point
+  archiFaces1 <- lapply(topo$vexConnections, function(vex) { return(topo$vexToEdge[vex$vex, vex$center])})
+  # the other set comes from the faces, using midpoints of their edges
+  archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(topo$vexToEdge[f[j], shift(f)[j]])})})
+  
+  pArchi <- list(vertices = archiPoints, faces = c(archiFaces1, archiFaces2))
+  
+  # make sure all faces are oriented consistently
+  for (i in seq(length(pArchi$faces))) {
+    if (!isNormalOutwardFacing(pArchi, pArchi$faces[[i]])) {
+      if (debug) cat("Flip face to make normal outward facing", fill=T)
+      pArchi$faces[[i]] <- rev(pArchi$faces[[i]])
+    }
+  }
+  
+  return(pArchi)
+}
+
 
 # Combine two polyhedra into one
 compose <- function(p1, p2)
 {
+  # TODO unify vertices!!
+  
   return(list(vertices = rbind(p1$vertices, p2$vertices),
               faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$vertices)) })),
               n_faces = p1$n_faces + p2$n_faces,
