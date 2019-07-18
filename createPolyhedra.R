@@ -32,11 +32,19 @@ drawPoly <- function(p, x=0, y=0, z=0, label="", debug=F)
     if (length(bodies) > 1) {
       bodyColors <- rainbow(length(bodies))
     }
+    faceTypes <- as.integer(factor(sapply(archi$faces, length))) # faces considered same just by nr of edges
+    if (max(faceTypes) > 1) {
+      faceTypeColors <- rainbow(max(faceTypes))  
+    }
     for (f in seq(length(p$faces))) {
       if (length(bodies) > 1) {
         faceColor <- bodyColors[which(sapply(bodies, function(b) { return(f %in% b)}))]
       } else {
-        faceColor <- rainbow(length(p$faces))[f]
+        if (max(faceTypes) > 1) {
+          faceColor <- faceTypeColors[faceTypes[f]]
+        } else {
+          faceColor <- rainbow(length(p$faces))[f]
+        }
       }
       cx = mean(p$vertices$x[p$faces[[f]]])
       cy = mean(p$vertices$y[p$faces[[f]]])
@@ -202,10 +210,11 @@ compound10Cubes <- buildRegularPoly(dodecahedron$vertices,
                                     polygonsize = 4,
                                     vertexsize = 6,
                                     exampleEdge = c(1, 8))
-drawPoly(compound10Cubes, x = 3, y = -3, label="Compound of 10 cubes")
+drawPoly(compound10Cubes, x = 3, y = -3, label="Compound of 10 cubes") ### 5??
 
 # rgl.close()
-
+# snapshot3d( "gallery.png", fmt = "png", top = TRUE )
+# rgl.postscript("gallery.svg", fmt="svg")
 
 # colouring
 # if there multiple bodies -> each its own color
@@ -245,4 +254,142 @@ for (i in seq(nrow(discovery))) {
 # using #bodies and eulers formula we should be able to?
 # for one body: F + V − E = 2
 # so must be: F + V − E = 2*B (B = bodies)
+
+
+
+# Now that we have the orientation covered, try list the edges in a constructive way so we
+# can build snub, chop, and maybe better duals as well
+# We could test the misbehaving duals with even just a partial polyhedron perhaps
+
+# figure out the topology
+
+p <- compose(tetrahedron, dual(tetrahedron))
+p <- cube
+p <- icosahedron
+p <- greatDodecahedron
+p <- greatIcosahedron
+p <- compound10Cubes ## 5??
+rgl_init
+clear3d()
+drawPoly(p, debug=T)
+# orientation is clockwise when looking at face
+
+# getTopology
+
+vexToEdge <- matrix(nrow=nrow(p$vertices), ncol=nrow(p$vertices), data=0)
+vexToRFace <- matrix(nrow=nrow(p$vertices), ncol=nrow(p$vertices), data=0)
+for (currentFaceNr in seq(length(p$faces))) {
+  currentFace <- p$faces[[currentFaceNr]]
+  currentFaceS <- shift(currentFace)
+  for (i in seq(length(currentFace))) {
+    # cat("Edge", currentFace[i], "-", currentFaceS[i], "has face", currentFaceNr, "on the right", fill = T)
+    
+    # vexToRFace for a pair [a,b] gives the face number on the right-hand side of edge connection a-b (when looked from above)
+    if (0 != vexToRFace[currentFace[i], currentFaceS[i]]) {
+      stop(paste("Right-hand face for edge", currentFace[i], "-", currentFaceS[i], 
+                 "already present:", vexToRFace[currentFace[i], currentFaceS[i]], 
+                 "while wanting to set to", currentFaceNr,
+                 "is the orientation consistent?"))
+    }
+    vexToRFace[currentFace[i], currentFaceS[i]] <- currentFaceNr
+    
+    # vexToEdge for a pair [a,b] gives the index number of the edge a-b. vexToEdge[a,b] = vexToEdge[b,a]
+    if (0 == vexToEdge[currentFace[i], currentFaceS[i]]) {
+      vexToEdge[currentFaceS[i], currentFace[i]] <- 1+max(vexToEdge)
+      vexToEdge[currentFace[i], currentFaceS[i]] <- vexToEdge[currentFaceS[i], currentFace[i]]
+    }
+  }
+}
+# vexToEdge
+# vexToRFace
+
+# Knowing which edges connect to which faces we can now build up oriented lists of 
+# faces and eges around any vertex
+
+vexConnections <- list()
+for (startingFace in seq(length(p$faces))) 
+{
+  for (centerPoint in p$faces[[startingFace]])
+  {
+    vexToFaces <- c()
+    vexToVertex <- c()
+    f <- startingFace
+    
+    repeat
+    {
+      vexToFaces <- c(vexToFaces, f) # keep track of an oriented list of connected faces around centerPoint
+      i <- which(p$faces[[f]] == centerPoint) # index in face f of centerPoint
+      prevPoint <- shift(p$faces[[f]],-1)[i] # point on an edge of face f that connects to centerPoint
+      vexToVertex <- c(vexToVertex, prevPoint) # keep track of an oriented list of connected points around centerPoint
+      
+      nextPoint <- shift(p$faces[[f]])[i] # find next face f that connects at edge nextPoint - centerPoint
+      f <- vexToRFace[ nextPoint, centerPoint ]
+     
+      if (f == startingFace) {
+        # check if we don't have this already - not just checking the same center point but also
+        # the set of faces as we could have multiple bodies just sharing a vertex but no faces
+        if (!any(sapply(vexConnections, function(con) { return( centerPoint == con$center &
+                                                                setequal(vexToFaces, con$faces) &
+                                                                setequal(vexToVertex, con$vex))})))
+        
+        vexConnections[[1+length(vexConnections)]] <- list(center = centerPoint,
+                                                           faces = vexToFaces,
+                                                           vex = vexToVertex)
+        break
+      }
+    }    
+  }
+}
+
+# Dual is now very easy
+
+# NB not sure the normalization should stay here - maybe we should apply a single factor to all
+newVertexCoords <- as.data.frame(normalizedistances(t(sapply(p$faces, function(f) { return(apply(p$vertices[f,],2,mean))}))))
+newFaces <- lapply(vexConnections, function(c) {return(c$faces)})
+q <- list( vertices = newVertexCoords,
+           faces = newFaces)
+drawPoly(q, debug = F)
+
+# With this it is also easier to do body count
+getConnectedFaces <- function(body)
+{
+  bodycount <- 1
+  repeat {
+    f <- body[bodycount]
+    vex <- which(sapply(vexConnections, function(c) { return(f %in% c$faces)}))
+    connectedFaces <- setdiff(unique(as.vector(sapply(vex, function(x) {return(vexConnections[[x]]$faces)}))),f)
+    newFaces <- setdiff(connectedFaces, body)
+    if (length(newFaces) == 0) break
+    body <- c(body, setdiff(connectedFaces, body))
+    bodycount <- bodycount + 1
+  }
+  return(body)
+}
+bodies <- list()
+for (f in seq(length(p$faces))) {
+  b <- getConnectedFaces(f)
+  if (!any(sapply(bodies, function(body) {return(setequal(body, b))}))) {
+    bodies[[1+length(bodies)]] <- b
+  }
+}
+
+# Now we should also be able to build archimedean polyhedra now
+
+# new points are midpoints of all edges ; the index of each edge is obtained using lookup in the vexToEdge matrix
+archiPoints <- as.data.frame(normalizedistances(t(sapply(seq(max(vexToEdge)), function(e) { 
+  w <- which(vexToEdge==e & upper.tri(vexToEdge)) # shall be one and only one
+  return(apply(p$vertices[c((w - 1) %/% nrow(vexToEdge) + 1, (w - 1) %% nrow(vexToEdge) + 1),],2,mean))
+  }))))
+# one set of faces comes from the vertices neighbouring each point
+archiFaces1 <- lapply(vexConnections, function(vex) { return(vexToEdge[vex$vex, vex$center])}) # maybe rev(vex$vex) ... to avoid rotate?
+# the other set comes from the faces, using midpoints of their edges
+archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(vexToEdge[f[j], shift(f)[j]])})})
+
+# fix orientation of faces...
+
+archi <- list( vertices = archiPoints,
+               faces = c(archiFaces1, archiFaces2) )
+drawPoly(archi) # ha!
+
+# Possibly the snub also
 
