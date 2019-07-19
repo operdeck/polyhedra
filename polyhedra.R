@@ -135,7 +135,7 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
 
 # Build a polygon given a set of vertices (full x, y, z coordinates), the two vertices
 # of an example edge (used to determine the global edge size of this polyhedron)
-buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(1,2), debug=F)
+buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(1,2), name = "", debug=F)
 {
   # Scale the vertices to unit length
   vertices <- normalizedistances(vertices)
@@ -144,7 +144,7 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
   edgelength <- distance(vertices[exampleEdge[1],], vertices[exampleEdge[2],])
   
   # Add new faces one by one until all vertices have the specified number of faces
-  poly <- list(vertices = vertices, faces = list())
+  poly <- list(vertices = vertices, faces = list(), name = name)
   edges <- matrix(data = 0, nrow = nrow(vertices), ncol = nrow(vertices))
   repeat {
     # Check if there's any not fully occupied vertices
@@ -308,14 +308,14 @@ findDistinctBodies <- function(p, debug=F)
 
 
 
-dual <- function(p, debug=F)
+dual <- function(p, name=paste("dual", p$name), debug=F)
 {
   topo <- getTopology(p$faces)
   
   newVertexCoords <- as.data.frame(normalizedistances(t(sapply(p$faces, function(f) { return(apply(p$vertices[f,],2,mean))}))))
   newFaces <- lapply(topo$vexConnections, function(c) {return(c$faces)})
   
-  pDual <- list( vertices = newVertexCoords, faces = newFaces)
+  pDual <- list( vertices = newVertexCoords, faces = newFaces, name = name)
   
   # make sure all faces are oriented consistently
   for (i in seq(length(pDual$faces))) {

@@ -13,8 +13,8 @@ source("polyhedra.R")
 # 3D tricks (movie, HTML interactive export, points highlighting)
 # http://www.sthda.com/english/wiki/a-complete-guide-to-3d-visualization-device-system-in-r-r-software-and-data-visualization#prepare-the-data
 
-# Draw a polygon. Offset is optional.
-drawPoly <- function(p, x=0, y=0, z=0, label="", debug=F)
+# Draw a single polygon. Offset is optional.
+drawSinglePoly <- function(p, x=0, y=0, z=0, label="", debug=F)
 {
   if (debug) {
     spacing <- 0.1
@@ -25,7 +25,7 @@ drawPoly <- function(p, x=0, y=0, z=0, label="", debug=F)
     alpha <- 1
   }
   if (nchar(label) > 0) {
-    rgl.texts(x, y, z + min(p$vertices$z) - 1, text = label, color = "black")
+    text3d(x, y + min(p$vertices$y) - 1, z, text = label, color = "black", cex=0.7, pos = 1)
   }
   if (length(p$faces) > 0 & !debug) { 
     bodies <- findDistinctBodies(p) # this call is too heavy when in debug mode and may not work
@@ -77,6 +77,18 @@ drawPoly <- function(p, x=0, y=0, z=0, label="", debug=F)
     }
   }
 }
+
+drawPoly <- function(p, start = c(0, 0, 0), delta = c(1, 0, 0), label = "", debug=F)
+{
+  if (!is.null(names(p))) {
+    drawSinglePoly(p, start[1], start[2], start[3], p$name, debug)
+  } else {
+    for (i in seq(length(p))) {
+      drawSinglePoly(p[[i]], start[1] + (i-1)*delta[1], start[2] + (i-1)*delta[2], start[3] + (i-1)*delta[3], p[[i]]$name, debug)  
+    }
+    rgl.texts(start[1], start[2] + 2, start[3], text = label, color="blue", pos = 4, cex = 1)
+  }
+}
 # rgl.close()
 
 # The function rgl_init() will create a new RGL device if requested or if there is no opened device:
@@ -104,7 +116,40 @@ rgl_init()
 tetrahedron <- buildRegularPoly(vertices = rbind(data.frame(x=1, y=1, z=1), data.frame(x=1, y=-1, z=-1), data.frame(x=-1, y=1, z=-1), data.frame(x=-1, y=-1, z=1)),
                                 polygonsize = 3,
                                 vertexsize = 3,
-                                debug = T)
+                                name = "Tetrahedron")
+
+octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
+                               polygonsize = 3,
+                               vertexsize = 4,
+                               exampleEdge = c(1,3),
+                               name = "Octahedron")
+
+cube <- dual(octahedron, name = "Cube")
+
+# all coords taken from https://en.wikipedia.org/wiki/Platonic_solid
+phi <- (1+sqrt(5))/2
+icosahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = 0, y = c(-1,1), z = c(-phi, phi)), 
+                                                 expand.grid(x = c(-1,1), y = c(-phi, phi), z = 0), 
+                                                 expand.grid(x = c(-phi, phi), y = 0, z = c(-1, 1))),
+                                polygonsize = 3,
+                                vertexsize = 5,
+                                name = "Icosahedron",
+                                debug = F)
+dodecahedron <- dual(icosahedron, name = "Dodecahedron")
+
+Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
+
+drawPoly(Platonics, delta = c(3, 0, 0), label = "Platonic Polyhedra") # draw along the x-axis
+
+Duals <- lapply(Platonics, dual)
+drawPoly(Duals, start = c(0, 0, -3), delta = c(3, 0, 0), label = "Duals of Platonics")
+
+KeplerPoinsots <- list() # etc
+
+
+stop()
+
+
 drawPoly(tetrahedron, label="Tetrahedron")
 
 drawPoly(dual(tetrahedron), z = -3, label="Dual Tetrahedron")
@@ -116,10 +161,6 @@ drawPoly(compose(tetrahedron, dual(tetrahedron)), z = -6)
 #                                vertexsize = 3,
 #                                debug=T)
 
-octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
-                               polygonsize = 3,
-                               vertexsize = 4,
-                               exampleEdge = c(1,3))
 drawPoly(octahedron, x = 3, label="Octahedron")
 
 cube <- dual(octahedron)
@@ -128,30 +169,6 @@ drawPoly(cube, x = 3, z = -3, label="Cube")
 cubeWithDual <- compose(cube, octahedron)
 drawPoly(cubeWithDual, x = 3, z = -6)
 
-# all coords taken from https://en.wikipedia.org/wiki/Platonic_solid
-phi <- (1+sqrt(5))/2
-
-# dodecahedron seems to work even lacking same-plane condition
-# dodecahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = c(-1,1), z = c(-1,1)), 
-#                                                   expand.grid(x = 0, y = c(-1/phi,1/phi), z = c(-phi, phi)), 
-#                                                   expand.grid(x = c(-1/phi,1/phi), y = c(-phi, phi), z = 0),
-#                                                   expand.grid(x = c(-phi, phi), y = 0, z = c(-1/phi,1/phi))),
-#                                  polygonsize = 5,
-#                                  vertexsize = 3,
-#                                  exampleEdge = c(1,9),
-#                                  debug = T)
-
-icosahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = 0, y = c(-1,1), z = c(-phi, phi)), 
-                                                 expand.grid(x = c(-1,1), y = c(-phi, phi), z = 0), 
-                                                 expand.grid(x = c(-phi, phi), y = 0, z = c(-1, 1))),
-                                polygonsize = 3,
-                                vertexsize = 5,
-                                debug = F)
-
-
-drawPoly(icosahedron, x = 6, label="Icosahedron")
-
-dodecahedron <- dual(icosahedron)
 drawPoly(dodecahedron, x = 6, z = -3, label="Dodecahedron")
 
 drawPoly(compose(icosahedron, dual(icosahedron)), x = 6, z = -6)
