@@ -27,10 +27,14 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label="", debug=F)
   if (nchar(label) > 0) {
     text3d(x, y + min(p$vertices$y) - 1, z, text = label, color = "black", cex=0.7, pos = 1)
   }
-  if (length(p$faces) > 0 & !debug) { 
-    bodies <- findDistinctBodies(p) # this call is too heavy when in debug mode and may not work
-    if (length(bodies) > 1) {
-      bodyColors <- rainbow(length(bodies))
+  if (length(p$faces) > 0) { 
+    if (!debug) {
+      bodies <- findDistinctBodies(p) # this call is too heavy when in debug mode and may not work
+      if (length(bodies) > 1) {
+        bodyColors <- rainbow(length(bodies))
+      }
+    } else {
+      bodies <- list()
     }
     faceType <- as.integer(factor(sapply(p$faces, length))) # faces considered same just by nr of edges
     if (max(faceType) > 1) {
@@ -139,88 +143,61 @@ dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
 Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
 
-drawPoly(Platonics, delta = c(3, 0, 0), label = "Platonic Polyhedra") # draw along the x-axis
+greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
+                                      polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6),
+                                      name = "Great Dodecahedron")
+smallStellatedDodecahedron <- buildRegularPoly(icosahedron$vertices,
+                                               polygonsize = 5,
+                                               vertexsize = 5,
+                                               exampleEdge = c(1,7),
+                                               name = "Small Stellated Dodecahedron")
+greatIcosahedron <- buildRegularPoly(icosahedron$vertices,
+                                     polygonsize = 3,
+                                     vertexsize = 5,
+                                     exampleEdge = c(2, 6),
+                                     name = "Great Icosahedron")
+greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", scaling = "vertex")
 
-Duals <- lapply(Platonics, dual)
-drawPoly(Duals, start = c(0, 0, -3), delta = c(3, 0, 0), label = "Duals of Platonics")
+KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, greatIcosahedron, greatStellatedDodecahedron)
 
-KeplerPoinsots <- list() # etc
+Regulars <- c(Platonics, KeplerPoinsots)
 
+drawPoly(Regulars, delta = c(3, 0, 0), label = "Regular Polyhedra") # draw along the x-axis
 
-stop()
+Duals <- lapply(Regulars[seq(length(Regulars))%%2==1], dual)
+drawPoly(Duals, start = c(0, 0, -3), delta = c(6, 0, 0), label = "Duals of Regulars")
 
+combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(compose(p, dual(p))) })
+drawPoly(combis, start = c(0, 0, -6), delta = c(6, 0, 0), label = "Combined")
 
-drawPoly(tetrahedron, label="Tetrahedron")
-
-drawPoly(dual(tetrahedron), z = -3, label="Dual Tetrahedron")
-
-drawPoly(compose(tetrahedron, dual(tetrahedron)), z = -6)
+archis <- lapply(Regulars[seq(length(Regulars))%%2==1], archi)
+drawPoly(archis, start = c(0, 0, -9), delta = c(6, 0, 0), label = "Rhombic")
 
 # cubedirect <- buildRegularPoly(vertices = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
 #                                polygonsize = 4,
 #                                vertexsize = 3,
 #                                debug=T)
 
-drawPoly(octahedron, x = 3, label="Octahedron")
-
-cube <- dual(octahedron)
-drawPoly(cube, x = 3, z = -3, label="Cube")
-
-cubeWithDual <- compose(cube, octahedron)
-drawPoly(cubeWithDual, x = 3, z = -6)
-
-drawPoly(dodecahedron, x = 6, z = -3, label="Dodecahedron")
-
-drawPoly(compose(icosahedron, dual(icosahedron)), x = 6, z = -6)
-
-greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
-                                      polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6))
-drawPoly(greatDodecahedron, x = 9, label="Great Dodecahedron")
-
-# the dual of this - doesnt work! strange - maybe because of {5/2} faces that occur, should be smallStellatedDodecahedron
-# instead it creates a total mess
-# drawPoly(dual(greatDodecahedron), debug=T) 
-
-smallStellatedDodecahedron <- buildRegularPoly(icosahedron$vertices,
-                                     polygonsize = 5,
-                                     vertexsize = 5,
-                                     exampleEdge = c(1,7))
-
-drawPoly(smallStellatedDodecahedron, x = 9, z= -3, label="Small Stellated Dodecahedron") # its dual doesnt work either
-
-# drawPoly(compose(smallStellatedDodecahedron, greatDodecahedron)) first is occluded completely by the other
-
-greatIcosahedron <- buildRegularPoly(icosahedron$vertices,
-                                     polygonsize = 3,
-                                     vertexsize = 5,
-                                     exampleEdge = c(2, 6))
-drawPoly(greatIcosahedron, x = 12, label="Great Icosahedron")
-
-greatStellatedDodecahedron <- dual(greatIcosahedron)
-drawPoly(greatStellatedDodecahedron, x = 12, z = -3, label="Great Stellated Dodecahedron")
-
-drawPoly(compose(greatStellatedDodecahedron, greatIcosahedron), x = 12, z = -6)
-
-# Archi (are the same for the duals of regulars)
-drawPoly(archi(cube), x = 3, y = 3, z = -1.5, label="{3,4,3,4}")
-drawPoly(archi(icosahedron), x = 6, y = 3, z = -1.5, label="{3,5,3,5}")
-drawPoly(archi(greatDodecahedron), x = 9, y = 3, z = -1.5, label="{5/2,5,5/2,5}")
-drawPoly(archi(greatIcosahedron), x = 12, y = 3, z = -1.5, label="{3,5/2,3,5/2}")
+# this family (4) should be shown
 
 compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
                                         polygonsize = 3,
                                         vertexsize = 3,
-                                        exampleEdge = c(3, 8))
+                                        exampleEdge = c(3, 8),
+                                        name = "5 Tetrahedra")
 
-drawPoly(compound5tetrahedra, x = 0, y = -3, label="Compound of 5 tetrahedra")
-drawPoly(dual(compound5tetrahedra), x = 0, y = -3, z = -3, label="Dual of 5 tetrahedra")
+dodecahedronStellations <- list(compound5tetrahedra,
+                                dual(compound5tetrahedra, name = "Dual 5 Tetrahedra"),
+                                archi(compound5tetrahedra, name = "Rhombic of 5 Tetrahedra"),
+                                compose(compound5tetrahedra, dual(compound5tetrahedra), name = "10 Tetrahedra"))
 
-drawPoly(archi(compound5tetrahedra), x = 0, y = -6, z = -1.5, label="5 octahedra")
+drawPoly(dodecahedronStellations, start = c(3*4, 6, 0), delta = c(0, 0, -5), label = "Stellations Dodecahedron")
 
-# below does not look entirely OK, there are clashing faces
+# below does not look entirely OK, there are clashing faces but
+# this could be due to the way {5/2} etc are trianglulized currently
 # see https://en.wikipedia.org/wiki/Polytope_compound
-drawPoly(compose(compound5tetrahedra, dual(compound5tetrahedra)), x = 0, y = -3, z = -6, 
-         label="Compound of 10 tetrahedra")
+# drawSinglePoly(compose(compound5tetrahedra, dual(compound5tetrahedra)), x = 0, y = -3, z = -6, 
+#          label="Compound of 10 tetrahedra")
 
 # When trying to construct directly, it tries to create two overlapping faces, which is
 # not allowed. Lifting that restriction it creates exactly the same flickering polyhedron
@@ -232,26 +209,26 @@ drawPoly(compose(compound5tetrahedra, dual(compound5tetrahedra)), x = 0, y = -3,
 #                                         vertexsize = 6,
 #                                         exampleEdge = c(3, 8), debug=T)
 
-# drawPoly(dodecahedron, debug=T)
-compound10Cubes <- buildRegularPoly(dodecahedron$vertices,
+# Dodecahedron stellation family
+
+compound5Cubes <- buildRegularPoly(dodecahedron$vertices,
                                     polygonsize = 4,
                                     vertexsize = 6,
-                                    exampleEdge = c(1, 8))
-drawPoly(compound10Cubes, x = 3, y = -3, label="Compound of 10 cubes") ### 5??
+                                    exampleEdge = c(1, 8),
+                                   name = "5 Cubes")
+moreDodecahedronStellations <- list(compound5Cubes, dual(compound5Cubes), archi(compound10Cubes))
+drawPoly(moreDodecahedronStellations, start = c(3*5, 6, 0), delta = c(0, 0, -5))
+# this one we saw before: dual(compound5Cubes)
+
 
 # looks nice but faces overlap?
 #drawPoly(archi(compound10Cubes), x = 3, y = -3, label="many archis") ### 5??
 
-# rgl.close()
+# saving to files:
 # snapshot3d( "gallery.png", fmt = "png", top = TRUE )
 # rgl.postscript("gallery.svg", fmt="svg")
 
-# colouring
-# if there multiple bodies -> each its own color
-# else if there are multiple types of faces -> each its own color
-# else rainbow
-
-
+# movie:
 # movie3d(spin3d(axis = c(1, 1, 1)), duration = 3, dir = getwd())
 
 stop("Brute force below")

@@ -308,14 +308,26 @@ findDistinctBodies <- function(p, debug=F)
 
 
 
-dual <- function(p, name=paste("dual", p$name), debug=F)
+dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
 {
   topo <- getTopology(p$faces)
   
-  newVertexCoords <- as.data.frame(normalizedistances(t(sapply(p$faces, function(f) { return(apply(p$vertices[f,],2,mean))}))))
+  newVertexCoords <- as.data.frame(t(sapply(p$faces, function(f) { return(apply(p$vertices[f,],2,mean))})))
   newFaces <- lapply(topo$vexConnections, function(c) {return(c$faces)})
   
-  pDual <- list( vertices = newVertexCoords, faces = newFaces, name = name)
+  # scale so that mid of a new vertex is at same distance from origin as mid
+  # of an old vertex - works at least for regulars, otherwise somewhat arbitrary
+  if (scaling == "edge") {
+    scale <- vectorlength(apply(p$vertices[p$faces[[1]][1:2],],2,mean)) / 
+      vectorlength(apply(newVertexCoords[newFaces[[1]][1:2],],2,mean))
+  } else if (scaling == "vertex") {
+    scale <- vectorlength(p$vertices[p$faces[[1]][1],])/
+      vectorlength(newVertexCoords[newFaces[[1]][1],])
+  } else {
+    scale == 1
+  }
+  
+  pDual <- list( vertices = newVertexCoords*scale, faces = newFaces, name = name)
   
   # make sure all faces are oriented consistently
   for (i in seq(length(pDual$faces))) {
@@ -329,7 +341,7 @@ dual <- function(p, name=paste("dual", p$name), debug=F)
 }
 
 # Create an derived polyhedron by truncating all vertices to the mid of the faces
-archi <- function(p, debug=F)
+archi <- function(p, name=paste("archi", p$name), debug=F)
 {
   topo <- getTopology(p$faces)
   
@@ -344,7 +356,7 @@ archi <- function(p, debug=F)
   # the other set comes from the faces, using midpoints of their edges
   archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(topo$vexToEdge[f[j], shift(f)[j]])})})
   
-  pArchi <- list(vertices = archiPoints, faces = c(archiFaces1, archiFaces2))
+  pArchi <- list(vertices = archiPoints, faces = c(archiFaces1, archiFaces2), name=name)
   
   # make sure all faces are oriented consistently
   for (i in seq(length(pArchi$faces))) {
@@ -359,17 +371,33 @@ archi <- function(p, debug=F)
 
 
 # Combine two polyhedra into one
-compose <- function(p1, p2)
+compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",")), debug=F)
 {
   # TODO unify vertices!!
+  # TODO finish
+  
+  # start with giving the p2 vertices the identity reference
+  p2NewReference <- nrow(p1$vertices) + seq(nrow(p2$vertices)) 
+  
+  # then see which ones are identical to p1 vertices and track that index
+  for (v1 in seq(nrow(p1$vertices))) { 
+    samePoints <- which(deltaEquals(distance(p1$vertices[v1,], p2$vertices[seq(nrow(p2$vertices)),]),0))
+    if (length(samePoints) > 0) {
+      p2NewReference[ samePoints ] <- v1  
+    }
+  }
+  
+  # TODO now relabel indices the faces of p2 using the mapping p2NewReference
+  
   
   return(list(vertices = rbind(p1$vertices, p2$vertices),
               faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$vertices)) })),
-              n_faces = p1$n_faces + p2$n_faces,
-              n_edges = p1$n_edges + p2$n_edges,
-              n_vertices = p1$n_vertices + p2$n_vertices))
+              name = name))
 }
 
+# to test the above
+# p1<-smallStellatedDodecahedron
+# p2<-dual(p1, scaling="vertex")
 
 # # checking the normals of the face
 # p <- octahedron
