@@ -24,6 +24,7 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label="", debug=F)
   } else {
     alpha <- 1
   }
+  label <- paste(label, "(", description(p), ")")
   if (nchar(label) > 0) {
     text3d(x, y + min(p$vertices$y) - 1, z, text = label, color = "black", cex=0.7, pos = 1)
   }
@@ -216,7 +217,7 @@ compound5Cubes <- buildRegularPoly(dodecahedron$vertices,
                                     vertexsize = 6,
                                     exampleEdge = c(1, 8),
                                    name = "5 Cubes")
-moreDodecahedronStellations <- list(compound5Cubes, dual(compound5Cubes), archi(compound10Cubes))
+moreDodecahedronStellations <- list(compound5Cubes, dual(compound5Cubes), archi(compound5Cubes))
 drawPoly(moreDodecahedronStellations, start = c(3*5, 6, 0), delta = c(0, 0, -5))
 # this one we saw before: dual(compound5Cubes)
 
@@ -279,5 +280,18 @@ drawPoly(p, debug=T)
 
 
 # Try create a description of the polygon
-unique(sapply(vexConnections, function(c) { return(paste(sapply(c$faces, function(f) {return(length(p$faces[[f]]))}), collapse = ",")) }))
+# unique(sapply(vexConnections, function(c) { return(paste(sapply(c$faces, function(f) {return(length(p$faces[[f]]))}), collapse = ",")) }))
+# 
+# Systematic list of all Archimedean solids and the operations to support:
+#   
+#   https://en.wikipedia.org/wiki/Archimedean_solid
+# 
+# Catalan solids, have a think
+# 
+# https://www.software3d.com/Archimedean.php
+# 
+# List of compounds I should be able to generate (currently not all e.g. 4 cubes):
+#   
+#   https://www.polyhedra.net/en/pictures.php?type=c
+# 
 

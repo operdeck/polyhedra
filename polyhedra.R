@@ -272,10 +272,8 @@ getTopology <- function(faces)
 }
 
 # Return list of list of distinct bodies in p. List contains the face indices.
-findDistinctBodies <- function(p, debug=F)
+findDistinctBodies <- function(p, topo = getTopology(p$faces), debug=F)
 {
-  topo <- getTopology(p$faces)
-  
   getConnectedFaces <- function(conn, body, debug=F)
   {
     bodycount <- 1
@@ -321,11 +319,16 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
   } else if (scaling == "vertex") {
     scale <- vectorlength(p$vertices[p$faces[[1]][1],])/
       vectorlength(newVertexCoords[newFaces[[1]][1],])
+  } else if (scaling == "none") {
+    scale <- 1
   } else {
-    scale == 1
+    stop(paste("Wrong scaling argument:", scaling))
   }
   
   pDual <- list( vertices = newVertexCoords*scale, faces = newFaces, name = name)
+  
+  # TODO it is possible we end up with uneven faces e.g.
+  # dual(archi(dodecahedron)) --> break the face up into triangles?
   
   # make sure all faces are oriented consistently
   for (i in seq(length(pDual$faces))) {
@@ -441,13 +444,85 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
   return(pSnub)
 }
 
-clear3d()
-drawSinglePoly(snub(cube), debug=F)
-drawPoly(lapply(Platonics, snub))
 
-drawSinglePoly(list(vertices=allPoints[,1:3], faces=allFaces) , debug=T)
-#drawSinglePoly(list(vertices=allPoints, faces=allFaces) , debug=F)
+description <- function(p)
+{
+  combineDescriptions <- function(descrs, suffixIdentical = "")
+  {
+    descrs <- data.frame(table(unlist(descrs)), stringsAsFactors = F)
+    if (nrow(descrs) == 1) {
+      # all are identical
+      if (descrs$Freq[1] == 1) {
+        # there is just one
+        return(as.character(descrs$Var1[1]))
+      } else {
+        return(paste0(descrs$Var1[1], suffixIdentical))
+      }
+    } else {
+      return(paste(sapply(seq(nrow(descrs)), function(i) {return(paste0(descrs$Freq[i], "x", descrs$Var1[i]))}), collapse=" + "))
+    }
+  }
+  
+  getFaceDescription <- function(f)
+  {
+    angles <- faceAngles(p$vertices[f,])
+    if (deltaEquals(sum(angles), 2*pi)) {
+      fDescr <- as.character(length(f)) # TODO check for regularity of angles and face lengths 
+    } else {
+      fDescr <- paste(length(f), sum(angles)/(2*pi), sep="/") # TODO maybe round
+    }
+    #cat("Face:",f,fDescr,fill=T)
+    return(fDescr)
+  }
+  
+  getVertexDescription <- function(aVertex)
+  {
+    faceDescriptions <- sapply(aVertex$faces, function(fi) {
+      return(getFaceDescription(p$faces[[fi]]))
+      })
+    vexDescriptions <- getFaceDescription(aVertex$vex)
+    
+    if (length(unique(faceDescriptions)) == 1 & length(unique(vexDescriptions)) == 1) {
+      vexDescription <- paste0("{",faceDescriptions[1],",",vexDescriptions[1],"}")
+    } else {
+      vexDescription <- paste0("{",paste(faceDescriptions, collapse=","),"}") # TODO put in best order
+    }
+    
+    return(vexDescription)
+  }
+  
+  getBodyDescription <- function(bodyVertices)
+  {
+    vertexDescriptions <- sapply(bodyVertices, getVertexDescription)
+    # TODO if just a single one return that
+    # otherwise switch over to counting the faces
+    bodyDescription <- combineDescriptions(vertexDescriptions)
+    return(bodyDescription)
+  }
 
+  topo <- getTopology(p$faces)  
+  bodies <- findDistinctBodies(p, topo)
+  
+  bodyDescriptions <- lapply(bodies, function(b) {
+    # subselect vertices that have faces in current body
+    getBodyDescription(topo$vexConnections[sapply(topo$vexConnections, function(t) {return(length(intersect(t$faces, b)) > 0 )})])
+  })
+  polyDescription <- combineDescriptions(bodyDescriptions, paste0("X", length(bodyDescriptions)))
+
+  return(polyDescription)
+}
+
+# description(octahedron)
+# description(cube)
+# description(smallStellatedDodecahedron)
+# description(archi(cube))
+# description(compose(cube, octahedron))
+# 
+# sapply(lapply(Regulars, dual), description)
+
+# p <- octahedron #smallStellatedDodecahedron
+# f <- p$faces[[1]]
+# faceAngles(p$vertices[f,])*360/2/pi
 
 # to test the above
 # p1<-smallStellatedDodecahedron
