@@ -82,7 +82,7 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label="", debug=F)
   }
 }
 
-drawPoly <- function(p, start = c(0, 0, 0), delta = c(1, 0, 0), label = "", debug=F)
+drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debug=F)
 {
   if (!is.null(names(p))) {
     drawSinglePoly(p, start[1], start[2], start[3], p$name, debug)

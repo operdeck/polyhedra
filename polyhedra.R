@@ -306,8 +306,6 @@ findDistinctBodies <- function(p, debug=F)
   return(bodies)
 }
 
-
-
 dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
 {
   topo <- getTopology(p$faces)
@@ -388,12 +386,68 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
   }
   
   # TODO now relabel indices the faces of p2 using the mapping p2NewReference
-  
-  
+
   return(list(vertices = rbind(p1$vertices, p2$vertices),
               faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$vertices)) })),
               name = name))
 }
+
+# Create new polyhedron by chopping off the vertices replacing each by a new face
+# TODO lin alg to find new points is not ok yet
+snub <- function(p, name = paste("snub", p$name), debug=F)
+{
+  topo <- getTopology(p$faces)
+  
+  # every vertex becomes a new face with all new points
+  allPoints <- NULL
+  allFaces <- list()
+  for (v in topo$vexConnections) {
+    # new points close to vertex in direction of the connected points
+    # TODO proper lin algebra
+    newPoints <- p$vertices[v$vex,]*1/3 + rep(p$vertices[v$center,]*2/3, n=length(v$vex))
+    newPoints$from <- v$center
+    newPoints$to <- v$vex
+    if (is.null(allPoints)) {
+      allPoints <- newPoints
+    } else {
+      allPoints <- rbind(allPoints, newPoints)
+    }
+    allFaces[[v$center]] <- (nrow(allPoints)-nrow(newPoints)+1):nrow(allPoints)
+  }
+  # now transform the old faces
+  newPointsLookup <- matrix(data = NA, nrow = nrow(allPoints), ncol = nrow(allPoints)) # sparse?
+  for (i in seq(nrow(allPoints))) {
+    # TODO maybe check for inconsistency if there's a value already
+    newPointsLookup[allPoints$from[i], allPoints$to[i]] <- i
+  }
+  for (f in p$faces)
+  {
+    snubbedFace <- as.vector(sapply(seq(length(f)), function(idx) {
+      return(c(newPointsLookup[f[idx], shift(f)[idx]], 
+               newPointsLookup[shift(f)[idx], f[idx]]))}))
+    allFaces[[length(allFaces)+1]] <- snubbedFace
+  }
+
+  pSnub <- list(vertices = allPoints[,1:3], faces = allFaces, name=name)
+  
+  # make sure all faces are oriented consistently
+  for (i in seq(length(pSnub$faces))) {
+    if (!isNormalOutwardFacing(pSnub, pSnub$faces[[i]])) {
+      if (debug) cat("Flip face to make normal outward facing", fill=T)
+      pSnub$faces[[i]] <- rev(pSnub$faces[[i]])
+    }
+  }
+  
+  return(pSnub)
+}
+
+clear3d()
+drawSinglePoly(snub(cube), debug=F)
+drawPoly(lapply(Platonics, snub))
+
+drawSinglePoly(list(vertices=allPoints[,1:3], faces=allFaces) , debug=T)
+#drawSinglePoly(list(vertices=allPoints, faces=allFaces) , debug=F)
+
 
 # to test the above
 # p1<-smallStellatedDodecahedron
