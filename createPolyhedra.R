@@ -14,17 +14,23 @@ source("polyhedra.R")
 # http://www.sthda.com/english/wiki/a-complete-guide-to-3d-visualization-device-system-in-r-r-software-and-data-visualization#prepare-the-data
 
 # Draw a single polygon. Offset is optional.
-drawSinglePoly <- function(p, x=0, y=0, z=0, label="", debug=F)
+drawSinglePoly <- function(p, x=0, y=0, z=0, label=p$name, debug=F)
 {
   if (debug) {
     spacing <- 0.1
     alpha <- 0.6 # in debug make somewhat transparent
+    # origin
+    spheres3d(x, y, z, color="red", radius = 0.02)
+    # all vertices
     spheres3d(x + p$vertices$x, y + p$vertices$y, z + p$vertices$z, color="grey", radius = 0.01)
     text3d(x + (1+spacing)*p$vertices$x, y + (1+spacing)*p$vertices$y, z + (1+spacing)*p$vertices$z, text = seq(nrow(p$vertices)), color="blue")
   } else {
     alpha <- 1
   }
-  label <- paste(label, "(", description(p), ")")
+  if (!debug) {
+    # avoid heavy description call in debug mode
+    label <- paste(label, "(", description(p), ")")
+  }
   if (nchar(label) > 0) {
     text3d(x, y + min(p$vertices$y) - 1, z, text = label, color = "black", cex=0.7, pos = 1)
   }
@@ -165,6 +171,7 @@ Regulars <- c(Platonics, KeplerPoinsots)
 
 drawPoly(Regulars, delta = c(3, 0, 0), label = "Regular Polyhedra") # draw along the x-axis
 
+stop()
 Duals <- lapply(Regulars[seq(length(Regulars))%%2==1], dual)
 drawPoly(Duals, start = c(0, 0, -3), delta = c(6, 0, 0), label = "Duals of Regulars")
 
@@ -234,31 +241,6 @@ drawPoly(moreDodecahedronStellations, start = c(3*5, 6, 0), delta = c(0, 0, -5))
 
 stop("Brute force below")
 
-# can we brute-force our way through the possibilities?
-rgl_init()
-p <- dodecahedron #icosahedron
-vexPairs <- combn(x = seq(nrow(p$vertices)), m = 2)
-vexPairs <- data.frame(t(vexPairs), dist=sapply(seq(ncol(vexPairs)), function(col) { return(distance(p$vertices[vexPairs[1,col],], p$vertices[vexPairs[2,col],]))}))
-vexPairs <- vexPairs[order(vexPairs$dist),]
-vexPairs$isUnique <- T
-row.names(vexPairs) <- NULL
-for (i in 2:nrow(vexPairs)) {
-  if (deltaEquals(vexPairs$dist[i-1], vexPairs$dist[i])) { vexPairs$isUnique[i] <- F }
-}
-vexPairs <- vexPairs[(vexPairs$isUnique),] # this is now a short list of vertex index pairs
-
-discovery <- expand.grid(polygonsize = 3:5, vertexsize = 3:20, vexPair = 1:nrow(vexPairs))
-discovery$isPolygon <- F
-for (i in seq(nrow(discovery))) {
-  # NB it also creates polys with holes in it
-  #some of the ones from dodecahedron are new!
-  poly <- buildRegularPoly(p$vertices, discovery$polygonsize[i], discovery$vertexsize[i], c(vexPairs$X1[discovery$vexPair[i]], vexPairs$X2[discovery$vexPair[i]]))
-  if (poly$n_faces > 0) {
-    cat("Success!", discovery$polygonsize[i], discovery$vertexsize[i], vexPairs$X1[discovery$vexPair[i]], vexPairs$X2[discovery$vexPair[i]], fill=T)
-    discovery$isPolygon[i] <- T
-    drawPoly(poly, x=2*sum(discovery$isPolygon), debug=F)
-  }
-}
 
 # Now that we have the orientation covered, try list the edges in a constructive way so we
 # can build snub, chop, and maybe better duals as well

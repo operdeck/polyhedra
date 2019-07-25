@@ -36,13 +36,17 @@ deltaEquals <- function(x, y, delta = 1e-6)
   return(abs(x-y)<delta)
 }
 
-# given a matrix of coordinates of a face, give the angles of the vectors from the center to the consecutive vertices
-faceAngles <- function(coords)
+# angle between vectors v1 and v2
+vectorAngle <- function(v1, v2)
 {
-  center <- apply(coords,2,mean)   
-  v1 <- t(t(coords) - center) # t as otherwise it will do col wise
-  v2 <- t(t(coords[c(2:nrow(coords),1),]) - center)
-  return (acos(sapply(seq(nrow(v1)), function(i) {
-    return((as.numeric(v1[i,]) %*% as.numeric(v2[i,]))/
-             (vectorlength(v1[i,]*vectorlength(v2[i,]))))})))
+  return (acos((as.numeric(v1) %*% as.numeric(v2))/(vectorlength(v1)*vectorlength(v2))))
 }
+
+# given a matrix of coordinates of a face, give the angles of the vectors from the center to the consecutive vertices
+innerAngles <- function(coords, center = apply(coords,2,mean))
+{
+  v1 <- t(t(coords) - as.numeric(center)) # t as otherwise it will do col wise
+  v2 <- t(t(coords[c(2:nrow(coords),1),]) - as.numeric(center))
+  return (sapply(seq(nrow(v1)), function(i) { vectorAngle(v1[i,], v2[i,]) }))
+}
+

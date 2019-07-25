@@ -91,7 +91,7 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
       if (debug) cat("Flip face to make normal outward facing", fill=T)
       aFace <- rev(aFace)
     }
-
+    
     # consider turning it upside down here to normalize the normal
     return(aFace)
   }
@@ -150,7 +150,12 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
     # Check if there's any not fully occupied vertices
     freeVertices <- which( sapply(seq(nrow(poly$vertices)), function(i) { sum(unlist(poly$faces) == i)}) < vertexsize )
     if (length(freeVertices) == 0) {
-      if (debug) print("All done!")
+      if (any(edges == 1)) {
+        if (debug) print("Done but with gaps")  
+        poly$faces <- list()
+      } else {
+        if (debug) print("All done!")
+      }
       break
     }
     
@@ -201,10 +206,18 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
 #       - the index of the center vertex
 #       - the indices of the faces surrounding the vertex (in order)
 #       - the indices of the vertices connected to this vertex (in order)
-getTopology <- function(faces)
+getTopology <- function(faces, debug=F)
 {
   n_vertices <- max(sapply(faces, max))
+  foundAnyGaps <- F
   
+  getFaceForDebug <- function(faceidx)
+  {
+    if (faceidx < 1 | faceidx > length(faces)) {
+      return (paste0("F",faceidx,"**invalid**"))
+    }
+    return (paste(paste0("F",faceidx,":"),paste(faces[[faceidx]],collapse=";")))
+  }
   vexToEdge <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
   vexToRFace <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
   for (currentFaceNr in seq(length(faces))) {
@@ -214,13 +227,26 @@ getTopology <- function(faces)
       # cat("Edge", currentFace[i], "-", currentFaceS[i], "has face", currentFaceNr, "on the right", fill = T)
       
       # vexToRFace for a pair [a,b] gives the face number on the right-hand side of edge connection a-b (when looked from above)
-      if (0 != vexToRFace[currentFace[i], currentFaceS[i]]) {
-        stop(paste("Right-hand face for edge", currentFace[i], "-", currentFaceS[i], 
-                   "already present:", vexToRFace[currentFace[i], currentFaceS[i]], 
-                   "while wanting to set to", currentFaceNr,
-                   "is the orientation consistent?"))
+      
+      if (0 == vexToRFace[currentFace[i], currentFaceS[i]]) {
+        # normal situation
+        vexToRFace[currentFace[i], currentFaceS[i]] <- currentFaceNr
+      } else {
+        if (0 == vexToRFace[currentFaceS[i], currentFace[i]]) {
+          # face is turned the other way around - can happen when below origin
+          vexToRFace[currentFaceS[i], currentFace[i]] <- currentFaceNr
+          # stop(paste("Right-hand face for edge", currentFace[i], "-", currentFaceS[i], 
+          #            "already present:", vexToRFace[currentFace[i], currentFaceS[i]], 
+          #            "while wanting to set to", currentFaceNr,
+          #            "is the orientation consistent?"))
+        } else {
+          # edge is fully occupied, this is an error
+          stop(paste("Both edges", currentFace[i], "-", currentFaceS[i], 
+                     "already present:", vexToRFace[currentFace[i], currentFaceS[i]], 
+                     "and:", vexToRFace[currentFaceS[i], currentFace[i]], 
+                     "while wanting to set to", currentFaceNr))
+        }
       }
-      vexToRFace[currentFace[i], currentFaceS[i]] <- currentFaceNr
       
       # vexToEdge for a pair [a,b] gives the index number of the edge a-b. vexToEdge[a,b] = vexToEdge[b,a]
       if (0 == vexToEdge[currentFace[i], currentFaceS[i]]) {
@@ -229,15 +255,50 @@ getTopology <- function(faces)
       }
     }
   }
-
+  
   # Knowing which edges connect to which faces we can now build up oriented lists of 
   # faces and eges around any vertex
   
+  isConnectedToPreviousStartFace <- rep(F, length(faces))
+  isUsedAsStartFace <- rep(F, length(faces))
   vexConnections <- list()
-  for (startingFace in seq(length(faces))) 
-  {
-    for (centerPoint in faces[[startingFace]])
+  startingFace <- NULL
+  repeat {
+    if (is.null(startingFace)) {
+      # start just somewhere
+      startingFace <- 1
+    } else {
+      if (any(isConnectedToPreviousStartFace & !isUsedAsStartFace)) {
+        # prefer to continue on a face connected to any of the faces previously used
+        startingFace <- which(isConnectedToPreviousStartFace & !isUsedAsStartFace)[1]
+      } else {
+        # otherwise there may be a disjunct set of faces (multiple bodies) so start there
+        if (any(!isUsedAsStartFace)) {
+          startingFace <- which(!isUsedAsStartFace)[1]
+        } else {
+          # all faces used, we're done
+          break;
+        }
+      }
+    }
+    isUsedAsStartFace[startingFace] <- T
+
+  # for (startingFace in seq(length(faces))) 
+    if (debug) cat("start face:", getFaceForDebug(startingFace), fill=T)
+    
+    # check which vex we already have with this face in it
+    coveredPoints <- c()
+    if (length(vexConnections) > 0) {
+      vexCoveringThisStartingFace <- which(sapply(vexConnections, function(con) { return(startingFace %in% con$faces)}))
+      if (length(vexCoveringThisStartingFace) > 0) {
+        coveredPoints <- sapply(vexCoveringThisStartingFace, function(i) {return(vexConnections[[i]]$center)})
+        if (debug) cat("skipping already covered points for this face:", paste0(coveredPoints, collapse=";"), fill=T)
+      }
+    }
+    
+    for (centerPoint in setdiff(faces[[startingFace]], coveredPoints))
     {
+      if (debug) cat("start building vertex around", centerPoint, fill=T)
       vexToFaces <- c()
       vexToVertex <- c()
       f <- startingFace
@@ -245,30 +306,44 @@ getTopology <- function(faces)
       repeat
       {
         vexToFaces <- c(vexToFaces, f) # keep track of an oriented list of connected faces around centerPoint
+        isConnectedToPreviousStartFace[f] <- T
+        if (debug) cat("center",centerPoint, "face",getFaceForDebug(f), fill=T)
         i <- which(faces[[f]] == centerPoint) # index in face f of centerPoint
         prevPoint <- shift(faces[[f]],-1)[i] # point on an edge of face f that connects to centerPoint
         vexToVertex <- c(vexToVertex, prevPoint) # keep track of an oriented list of connected points around centerPoint
         
         nextPoint <- shift(faces[[f]])[i] # find next face f that connects at edge nextPoint - centerPoint
         f <- vexToRFace[ nextPoint, centerPoint ]
-        
-        if (f == startingFace) {
+        if (f == 0) {
+          foundAnyGaps <- T
+          cat("WARNING: there's a gap, no face to the right of the edge from", centerPoint, "to", nextPoint, fill=T)
+          # don't add this vex although in theory we could try adding vertices with gaps by first trying going
+          # the other way from the start - becomes messy and what if there are multiple gaps
+          break
+        }
+
+        if (f == startingFace | f == 0) {
           # check if we don't have this already - not just checking the same center point but also
           # the set of faces as we could have multiple bodies just sharing a vertex but no faces
           if (!any(sapply(vexConnections, function(con) { return( centerPoint == con$center &
                                                                   setequal(vexToFaces, con$faces) &
                                                                   setequal(vexToVertex, con$vex))})))
-            
+          {
+            if (debug) cat("adding vex center",centerPoint,"faces:",paste(paste0("F",vexToFaces), collapse = ";"),"vex:",paste(vexToVertex, collapse=";"), fill=T)
             vexConnections[[1+length(vexConnections)]] <- list(center = centerPoint,
                                                                faces = vexToFaces,
                                                                vex = vexToVertex)
-          break
+          } else {
+            # not sure this can even happen with the more careful choice of starting vertices in place now
+            if (debug) cat("skipping adding vex center",centerPoint,"faces:",paste(paste0("F",vexToFaces), collapse = ";"),"vex:",paste(vexToVertex, collapse=";"), fill=T)
+          }
+          break # next vertex
         }
       }    
     }
   }
   
-  return (list(vexToEdge=vexToEdge, vexToRFace=vexToRFace, vexConnections=vexConnections))
+  return (list(vexToEdge=vexToEdge, vexToRFace=vexToRFace, vexConnections=vexConnections, hasGaps=foundAnyGaps))
 }
 
 # Return list of list of distinct bodies in p. List contains the face indices.
@@ -389,7 +464,7 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
   }
   
   # TODO now relabel indices the faces of p2 using the mapping p2NewReference
-
+  
   return(list(vertices = rbind(p1$vertices, p2$vertices),
               faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$vertices)) })),
               name = name))
@@ -405,9 +480,15 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
   allPoints <- NULL
   allFaces <- list()
   for (v in topo$vexConnections) {
-    # new points close to vertex in direction of the connected points
-    # TODO proper lin algebra
-    newPoints <- p$vertices[v$vex,]*1/3 + rep(p$vertices[v$center,]*2/3, n=length(v$vex))
+    # create new points close to vertex center C in direction of the connected points P
+    # new point = C + alpha*(PC)
+    angles <- innerAngles(p$vertices[v$vex,], center=p$vertices[v$center,])
+    # find alpha such that the sides of the newly created faces are equal
+    alpha <- 0.5 - 0.5*(sin(angles/2)/(1+sin(angles/2))) # not trivial but easily derived
+    
+    newPoints <- p$vertices[v$vex,]*alpha + (1-alpha)*data.frame(x=rep(p$vertices$x[v$center], length(v$vex)), 
+                                                                 y=rep(p$vertices$y[v$center], length(v$vex)),
+                                                                 z=rep(p$vertices$z[v$center], length(v$vex)))
     newPoints$from <- v$center
     newPoints$to <- v$vex
     if (is.null(allPoints)) {
@@ -430,7 +511,7 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
                newPointsLookup[shift(f)[idx], f[idx]]))}))
     allFaces[[length(allFaces)+1]] <- snubbedFace
   }
-
+  
   pSnub <- list(vertices = allPoints[,1:3], faces = allFaces, name=name)
   
   # make sure all faces are oriented consistently
@@ -444,8 +525,10 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
   return(pSnub)
 }
 
+# clear3d()
+# drawSinglePoly(snub(cube), debug=T)
 
-description <- function(p)
+description <- function(p, debug=F)
 {
   combineDescriptions <- function(descrs, suffixIdentical = "")
   {
@@ -456,20 +539,31 @@ description <- function(p)
         # there is just one
         return(as.character(descrs$Var1[1]))
       } else {
+        # there are multiple but all are the same
         return(paste0(descrs$Var1[1], suffixIdentical))
       }
     } else {
+      # returning them as a frequency table (12 x a + 5 x b)
       return(paste(sapply(seq(nrow(descrs)), function(i) {return(paste0(descrs$Freq[i], "x", descrs$Var1[i]))}), collapse=" + "))
     }
   }
   
-  getFaceDescription <- function(f)
+  getFaceDescription <- function(f, addlengths=debug, addangles=debug)
   {
-    angles <- faceAngles(p$vertices[f,])
+    sidelengths <- round(distance(p$vertices[f,], p$vertices[shift(f),]),6)
+    baseDescr <- as.character(length(f))
+    if (addlengths) {
+      baseDescr <- paste0(baseDescr, " [length: ", combineDescriptions(sidelengths), "]")
+    }
+    
+    # TODO check for regularity of angles and face lengths 
+    angles <- innerAngles(p$vertices[f,])
     if (deltaEquals(sum(angles), 2*pi)) {
-      fDescr <- as.character(length(f)) # TODO check for regularity of angles and face lengths 
+      # simple polygon
+      fDescr <- baseDescr
     } else {
-      fDescr <- paste(length(f), sum(angles)/(2*pi), sep="/") # TODO maybe round
+      # polygon with multiple rounds
+      fDescr <- paste(baseDescr, sum(angles)/(2*pi), sep="/") # TODO maybe round
     }
     #cat("Face:",f,fDescr,fill=T)
     return(fDescr)
@@ -477,10 +571,8 @@ description <- function(p)
   
   getVertexDescription <- function(aVertex)
   {
-    faceDescriptions <- sapply(aVertex$faces, function(fi) {
-      return(getFaceDescription(p$faces[[fi]]))
-      })
-    vexDescriptions <- getFaceDescription(aVertex$vex)
+    faceDescriptions <- sapply(aVertex$faces, function(fi) { return(getFaceDescription(p$faces[[fi]])) })
+    vexDescriptions <- getFaceDescription(aVertex$vex, addlengths=F)
     
     if (length(unique(faceDescriptions)) == 1 & length(unique(vexDescriptions)) == 1) {
       vexDescription <- paste0("{",faceDescriptions[1],",",vexDescriptions[1],"}")
@@ -499,7 +591,7 @@ description <- function(p)
     bodyDescription <- combineDescriptions(vertexDescriptions)
     return(bodyDescription)
   }
-
+  
   topo <- getTopology(p$faces)  
   bodies <- findDistinctBodies(p, topo)
   
@@ -508,7 +600,7 @@ description <- function(p)
     getBodyDescription(topo$vexConnections[sapply(topo$vexConnections, function(t) {return(length(intersect(t$faces, b)) > 0 )})])
   })
   polyDescription <- combineDescriptions(bodyDescriptions, paste0("X", length(bodyDescriptions)))
-
+  
   return(polyDescription)
 }
 
@@ -522,7 +614,7 @@ description <- function(p)
 
 # p <- octahedron #smallStellatedDodecahedron
 # f <- p$faces[[1]]
-# faceAngles(p$vertices[f,])*360/2/pi
+# innerAngles(p$vertices[f,])*360/2/pi
 
 # to test the above
 # p1<-smallStellatedDodecahedron
