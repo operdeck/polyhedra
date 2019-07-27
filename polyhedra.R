@@ -218,6 +218,12 @@ getTopology <- function(faces, debug=F)
     }
     return (paste(paste0("F",faceidx,":"),paste(faces[[faceidx]],collapse=";")))
   }
+  
+  # Build a list of all edges by going round all faces, storing
+  # the edge index in a 2D matrix indexed by vertex indices. Not
+  # currently keeping a list of edges->faces directly but could be
+  # done trivially if needed.
+  
   vexToEdge <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
   vexToRFace <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
   for (currentFaceNr in seq(length(faces))) {
@@ -235,10 +241,11 @@ getTopology <- function(faces, debug=F)
         if (0 == vexToRFace[currentFaceS[i], currentFace[i]]) {
           # face is turned the other way around - can happen when below origin
           vexToRFace[currentFaceS[i], currentFace[i]] <- currentFaceNr
-          # stop(paste("Right-hand face for edge", currentFace[i], "-", currentFaceS[i], 
-          #            "already present:", vexToRFace[currentFace[i], currentFaceS[i]], 
+          # stop(paste("Right-hand face for edge", currentFace[i], "-", currentFaceS[i],
+          #            "already present:", vexToRFace[currentFace[i], currentFaceS[i]],
           #            "while wanting to set to", currentFaceNr,
           #            "is the orientation consistent?"))
+          # TODO perhaps rotate 
         } else {
           # edge is fully occupied, this is an error
           stop(paste("Both edges", currentFace[i], "-", currentFaceS[i], 
