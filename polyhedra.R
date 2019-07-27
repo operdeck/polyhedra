@@ -1,5 +1,7 @@
 # Functions specifically to constructing polyhedra
 
+library(data.table)
+
 source("math.R")
 
 # shift elements from f one up or down
@@ -390,7 +392,7 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
 {
   topo <- getTopology(p$faces)
   
-  newVertexCoords <- as.data.frame(t(sapply(p$faces, function(f) { return(apply(p$vertices[f,],2,mean))})))
+  newVertexCoords <- as.data.table(t(sapply(p$faces, function(f) { return(apply(p$vertices[f,],2,mean))})))
   newFaces <- lapply(topo$vexConnections, function(c) {return(c$faces)})
   
   # scale so that mid of a new vertex is at same distance from origin as mid
@@ -429,7 +431,7 @@ archi <- function(p, name=paste("archi", p$name), debug=F)
   topo <- getTopology(p$faces)
   
   # new points are midpoints of all edges ; the index of each edge is obtained using lookup in the vexToEdge matrix
-  archiPoints <- as.data.frame(normalizedistances(t(sapply(seq(max(topo$vexToEdge)), function(e) { 
+  archiPoints <- as.data.table(normalizedistances(t(sapply(seq(max(topo$vexToEdge)), function(e) { 
     w <- which(topo$vexToEdge==e & upper.tri(topo$vexToEdge)) # shall be one and only one
     return(apply(p$vertices[c((w - 1) %/% nrow(topo$vexToEdge) + 1, 
                               (w - 1) %% nrow(topo$vexToEdge) + 1),],2,mean))
@@ -493,7 +495,7 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
     # find alpha such that the sides of the newly created faces are equal
     alpha <- 0.5 - 0.5*(sin(angles/2)/(1+sin(angles/2))) # not trivial but easily derived
     
-    newPoints <- p$vertices[v$vex,]*alpha + (1-alpha)*data.frame(x=rep(p$vertices$x[v$center], length(v$vex)), 
+    newPoints <- p$vertices[v$vex,]*alpha + (1-alpha)*data.table(x=rep(p$vertices$x[v$center], length(v$vex)), 
                                                                  y=rep(p$vertices$y[v$center], length(v$vex)),
                                                                  z=rep(p$vertices$z[v$center], length(v$vex)))
     newPoints$from <- v$center
@@ -539,19 +541,19 @@ description <- function(p, debug=F)
 {
   combineDescriptions <- function(descrs, suffixIdentical = "")
   {
-    descrs <- data.frame(table(unlist(descrs)), stringsAsFactors = F)
-    if (nrow(descrs) == 1) {
+    descrFreqs <- data.table(table(unlist(descrs)), stringsAsFactors = F)
+    if (nrow(descrFreqs) == 1) {
       # all are identical
-      if (descrs$Freq[1] == 1) {
+      if (descrFreqs$N[1] == 1) {
         # there is just one
-        return(as.character(descrs$Var1[1]))
+        return(as.character(descrFreqs$V1[1]))
       } else {
         # there are multiple but all are the same
-        return(paste0(descrs$Var1[1], suffixIdentical))
+        return(paste0(descrFreqs$V1[1], suffixIdentical))
       }
     } else {
       # returning them as a frequency table (12 x a + 5 x b)
-      return(paste(sapply(seq(nrow(descrs)), function(i) {return(paste0(descrs$Freq[i], "x", descrs$Var1[i]))}), collapse=" + "))
+      return(paste(sapply(seq(nrow(descrFreqs)), function(i) {return(paste0(descrFreqs$N[i], "x", descrFreqs$V1[i]))}), collapse=" + "))
     }
   }
   

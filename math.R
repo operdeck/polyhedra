@@ -1,10 +1,17 @@
 # Basic math stuff
 # there are libs with these as well but at least the below match the interfaces we use
 
-crossProduct <- function(ab, ac){
+crossproduct <- function(ab, ac){
   abci = ab$y * ac$z - ac$y * ab$z
   abcj = ac$x * ab$z - ab$x * ac$z
   abck = ab$x * ac$y - ac$x * ab$y
+  return (c(x=abci, y=abcj, z=abck))
+}
+
+crossproductv <- function(ab, ac){
+  abci = ab[2] * ac[3] - ac[2] * ab[3]
+  abcj = ac[1] * ab[3] - ab[1] * ac[3]
+  abck = ab[1] * ac[2] - ac[1] * ab[2]
   return (c(x=abci, y=abcj, z=abck))
 }
 
@@ -21,7 +28,7 @@ normalizedistances <- function(vertices)
 
 normal <- function(point1, point2, point3)
 {
-  n <- crossProduct(point2-point1, point3-point1)
+  n <- crossproduct(point2-point1, point3-point1)
   return (n / vectorlength(n))
 }
 
@@ -39,6 +46,9 @@ deltaEquals <- function(x, y, delta = 1e-6)
 # angle between vectors v1 and v2
 vectorAngle <- function(v1, v2)
 {
+  #print(asin(vectorlength(crossproductv(v1, v2))/(vectorlength(v1)*vectorlength(v2)))*360/(2*pi))
+  #atan2d(norm(cross(u,v)),dot(u,v))
+  #return (base::atan2(vectorlength(crossproductv(v1, v2)), (as.numeric(v1) %*% as.numeric(v2))))
   return (acos((as.numeric(v1) %*% as.numeric(v2))/(vectorlength(v1)*vectorlength(v2))))
 }
 
