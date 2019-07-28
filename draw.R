@@ -1,4 +1,6 @@
 library(rgl)
+library(data.table)
+source("math.R")
 
 #open3d()
 #shade3d( icosahedron3d() )
@@ -10,7 +12,7 @@ library(rgl)
 # 3D tricks (movie, HTML interactive export, points highlighting)
 # http://www.sthda.com/english/wiki/a-complete-guide-to-3d-visualization-device-system-in-r-r-software-and-data-visualization#prepare-the-data
 
-drawPolygonTriangulate <- function(vertexIndices, vertexCoords, col, alpha, x, y, z)
+drawPolygonTriangulate <- function(vertexIndices, vertexCoords, col="grey", alpha=1, offset=c(0,0,0))
 {
   center <- apply(vertexCoords[vertexIndices], 2, mean)
   rotatedFace <- shift(vertexIndices)
@@ -18,23 +20,23 @@ drawPolygonTriangulate <- function(vertexIndices, vertexCoords, col, alpha, x, y
     p1 <- vertexIndices[t]
     p2 <- rotatedFace[t]
     # NB not sure about the orientation of the triangle - may have to check on this
-    triangles3d( x + c(vertexCoords$x[c(p1,p2)], center[1]), 
-                 y + c(vertexCoords$y[c(p1,p2)], center[2]), 
-                 z + c(vertexCoords$z[c(p1,p2)], center[3]), 
+    triangles3d( offset[1] + c(vertexCoords$x[c(p1,p2)], center[1]), 
+                 offset[2] + c(vertexCoords$y[c(p1,p2)], center[2]), 
+                 offset[3] + c(vertexCoords$z[c(p1,p2)], center[3]), 
                  col=col, alpha=alpha) # "red"
   }
   
 }
 
-drawPolygon <- function(vertexIndices, vertexCoords, col, alpha, x, y, z)
+drawPolygon <- function(vertexIndices, vertexCoords, col="grey", alpha=1, offset=c(0,0,0))
 {
   if (length(vertexIndices) > 3) { 
-    drawPolygonTriangulate(vertexIndices, vertexCoords, col, alpha, x, y, z)
+    drawPolygonTriangulate(vertexIndices, vertexCoords, col, alpha, offset)
   } else {
     # NB not sure about the orientation of the triangle - may have to check on this
-    triangles3d( x + vertexCoords$x[vertexIndices],
-                 y + vertexCoords$y[vertexIndices], 
-                 z + vertexCoords$z[vertexIndices], 
+    triangles3d( offset[1] + vertexCoords$x[vertexIndices],
+                 offset[2] + vertexCoords$y[vertexIndices], 
+                 offset[3] + vertexCoords$z[vertexIndices], 
                  col=col, alpha=alpha)
   }
   
@@ -84,13 +86,13 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
           faceColor <- rainbow(length(p$faces))[f]
         }
       }
-      cx = mean(p$vertices$x[p$faces[[f]]])
-      cy = mean(p$vertices$y[p$faces[[f]]])
-      cz = mean(p$vertices$z[p$faces[[f]]])
       if (debug) {
+        cx = mean(p$vertices$x[p$faces[[f]]])
+        cy = mean(p$vertices$y[p$faces[[f]]])
+        cz = mean(p$vertices$z[p$faces[[f]]])
         text3d(x + cx, y + cy, z + cz, text = paste0("F",f), color="black")
       }
-      drawPolygon(p$faces[[f]], p$vertices, faceColor, alpha, x, y, z)
+      drawPolygon(p$faces[[f]], p$vertices, faceColor, alpha, c(x, y, z)) # pass debug??
     }
   }
 }
@@ -124,12 +126,13 @@ rgl_init <- function(new.device = FALSE, bg = "white", width = 640) {
 }
 
 # draw a n/d polygon
-testDrawPolygon(n, d=1)
+testDrawPolygon <- function(n, d=1)
 {
   clear3d()
   angles <- ((0:(n-1))/n)*2*pi
   coords <- data.table(x=sin(angles),y=cos(angles),z=0)
   face <- ((((1:n)-1)*d)%%n)+1
-  simplified <- list(vertices = coords, faces = list(face))
-  drawSinglePoly(simplified, debug=T)
+  drawPolygon(face, coords, col="red")
+  # simplified <- list(vertices = coords, faces = list(face))
+  # drawSinglePoly(simplified, debug=T)
 }
