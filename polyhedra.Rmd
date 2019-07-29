@@ -1,0 +1,115 @@
+---
+title: "Polyhedra"
+output:
+  html_document:
+    df_print: paged
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook to explore the construction of polyhedra using the construction code from (https://github.com/operdeck/polyhedra).
+
+# The Platonic solids
+
+A Platonic solid is a convex polyhedron whose faces and vertices are all of the same type. There are five such solids.
+
+Three of the Platonic solids are sort-of pre-defined. They are constructed from a set of vertex coordinates (given), a polygon and vertex description and an example edge size. 
+
+### TODO show how this works for e.g. tetrahedron
+
+The other two Platonic solids are derived as dual. These are the 5 Platonic colids:
+
+```{r, warning=F, comment=F}
+source("polyhedra.R")
+source("draw.R")
+
+cube <- dual(octahedron, name = "Cube")
+dodecahedron <- dual(icosahedron, name = "Dodecahedron")
+
+Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
+
+rgl_init(width=640, height=400)
+drawPoly(Platonics, start = c(1, 1, 1), delta = c(2, 0, 0))
+snapshot3d("snapshots/platonics.png", fmt = "png", top = TRUE )
+```
+
+![Platonic Solids](snapshots/platonics.png)
+
+# The Kepler-Poinsot polyhedra
+
+The 4 other regular polyhedra can be derived from the Platonic solids by stellation. We take the vertices of the Platonic solids and fit regular polygons in it with defined size. The great stellated dodecahedron is defined as the dual of the great icosahedron but could have been defined in the same manner as the other three.
+
+```{r}
+greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
+                                      polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6),
+                                      name = "Great Dodecahedron")
+smallStellatedDodecahedron <- buildRegularPoly(icosahedron$vertices,
+                                               polygonsize = 5,
+                                               vertexsize = 5,
+                                               exampleEdge = c(1,7),
+                                               name = "Small Stellated Dodecahedron")
+greatIcosahedron <- buildRegularPoly(icosahedron$vertices,
+                                     polygonsize = 3,
+                                     vertexsize = 5,
+                                     exampleEdge = c(2, 6),
+                                     name = "Great Icosahedron")
+greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", 
+                                   scaling = "vertex")
+
+KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, greatIcosahedron, greatStellatedDodecahedron)
+Regulars <- c(Platonics, KeplerPoinsots)
+
+rgl_init(width=640, height=400)
+drawPoly(KeplerPoinsots, start = c(1, 1, 1), delta = c(2, 0, 0))
+snapshot3d("snapshots/keplerpoinsots.png", fmt = "png", top = TRUE )
+```
+
+![Kepler-Poinsot Solids](snapshots/keplerpoinsots.png)
+Note the descriptions: while the name can (optionally) be set by the user, the description in parentheses is generated from the topology. 
+
+# Transformations
+
+## Dual transformation
+
+Some of the regular polyhedra shown were already created using the *dual* transform. This turns faces into vertices and vertices into faces. The duals of the regular polyhedra are also regular polyhedra.
+
+Combining the duals with the originals is sometimes interesting, although in one case the dual completely occludes the original.
+
+```{r}
+combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(compose(p, dual(p))) })
+
+rgl_init(width=640, height=400)
+drawPoly(combis, start = c(1, 1, 1), delta = c(2, 1, 0))
+snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
+```
+
+![Combination of regular polyhedra with their duals](snapshots/regulars-with-duals.png)
+## Archi transformation
+
+TODO describe
+
+## Other stellations
+
+TODO describe
+
+## Discovery mode
+
+TODO show
+
+# Next steps
+
+- Build polyhedra from vertex description
+- Stellation transformation
+- Other Archimedean transformations
+
+Wolfram has a fairly complete set of operations, see https://reference.wolfram.com/language/PolyhedronOperations/tutorial/PolyhedronOperations.html.
+
+# Examples of missing polyhedra
+
+-  the grand 600-cell or grand polytetrahedron is a regular star 4-polytope with Schläfli symbol {3,3,5/2}. It is one of 10 regular Schläfli-Hess polytopes. There's a whole family of related polyhedra. (https://en.wikipedia.org/wiki/Grand_600-cell)
+
+- all the icosahedron stellations as listed in e.g. (http://mathworld.wolfram.com/IcosahedronStellations.html). There exists a Wolfram Language function Stellate[poly, ratio] in the Wolfram Language package PolyhedronOperations` , although it actually replaces faces with pyramids (i.e., performs what is properly known as augmentation), and therefore does not perform true stellation.
+
+
+
+
+
+
