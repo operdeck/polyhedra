@@ -62,7 +62,7 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label="", debug=F)
         
         # TODO this does not work well for {5/2} - just try plot in isolation
         
-        rotatedFace <- shift(p$faces[[f]])
+        rotatedFace <- shiftrotate(p$faces[[f]])
         for (t in seq(length(p$faces[[f]]))) {
           p1 <- p$faces[[f]][t]
           p2 <- rotatedFace[t]
@@ -162,7 +162,7 @@ greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dod
 KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, greatIcosahedron, greatStellatedDodecahedron)
 
 Regulars <- c(Platonics, KeplerPoinsots)
-
+stop()
 drawPoly(Regulars, delta = c(3, 0, 0), label = "Regular Polyhedra") # draw along the x-axis
 
 Duals <- lapply(Regulars[seq(length(Regulars))%%2==1], dual)

@@ -4,15 +4,6 @@ library(data.table)
 
 source("math.R")
 
-# shift elements from f one up or down
-# NB could be generalized to shift more than 1 but not needed here
-shift <- function(f, direction = 1)
-{
-  if (length(f) < 2) return(f)
-  if (direction == 1) return (f[c(2:length(f),1)])
-  return(f[c(length(f),1:(length(f)-1))])
-}
-
 # Returns T if outward facing (= rotating anti-clockwise when looking down towards face in direction of origin)
 isNormalOutwardFacing <- function(p, f)
 {
@@ -185,8 +176,8 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
     if (!is.null(f)) {
       poly$faces[[length(poly$faces) + 1]] <- f
       for (i in seq(length(f))) {
-        edges[f[i], shift(f)[i]] <- 1 + edges[f[i], shift(f)[i]]
-        edges[shift(f)[i], f[i]] <- 1 + edges[shift(f)[i], f[i]]
+        edges[f[i], shiftrotate(f)[i]] <- 1 + edges[f[i], shiftrotate(f)[i]]
+        edges[shiftrotate(f)[i], f[i]] <- 1 + edges[shiftrotate(f)[i], f[i]]
       }
       if (debug) drawPoly(poly, debug=T)
     } else {
@@ -230,7 +221,7 @@ getTopology <- function(faces, debug=F)
   vexToRFace <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
   for (currentFaceNr in seq(length(faces))) {
     currentFace <- faces[[currentFaceNr]]
-    currentFaceS <- shift(currentFace)
+    currentFaceS <- shiftrotate(currentFace)
     for (i in seq(length(currentFace))) {
       # cat("Edge", currentFace[i], "-", currentFaceS[i], "has face", currentFaceNr, "on the right", fill = T)
       
@@ -318,10 +309,10 @@ getTopology <- function(faces, debug=F)
         isConnectedToPreviousStartFace[f] <- T
         if (debug) cat("center",centerPoint, "face",getFaceForDebug(f), fill=T)
         i <- which(faces[[f]] == centerPoint) # index in face f of centerPoint
-        prevPoint <- shift(faces[[f]],-1)[i] # point on an edge of face f that connects to centerPoint
+        prevPoint <- shiftrotate(faces[[f]],-1)[i] # point on an edge of face f that connects to centerPoint
         vexToVertex <- c(vexToVertex, prevPoint) # keep track of an oriented list of connected points around centerPoint
         
-        nextPoint <- shift(faces[[f]])[i] # find next face f that connects at edge nextPoint - centerPoint
+        nextPoint <- shiftrotate(faces[[f]])[i] # find next face f that connects at edge nextPoint - centerPoint
         f <- vexToRFace[ nextPoint, centerPoint ]
         if (f == 0) {
           foundAnyGaps <- T
@@ -439,7 +430,7 @@ archi <- function(p, name=paste("archi", p$name), debug=F)
   # one set of faces comes from the vertices neighbouring each point
   archiFaces1 <- lapply(topo$vexConnections, function(vex) { return(topo$vexToEdge[vex$vex, vex$center])})
   # the other set comes from the faces, using midpoints of their edges
-  archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(topo$vexToEdge[f[j], shift(f)[j]])})})
+  archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(topo$vexToEdge[f[j], shiftrotate(f)[j]])})})
   
   pArchi <- list(vertices = archiPoints, faces = c(archiFaces1, archiFaces2), name=name)
   
@@ -516,8 +507,8 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
   for (f in p$faces)
   {
     snubbedFace <- as.vector(sapply(seq(length(f)), function(idx) {
-      return(c(newPointsLookup[f[idx], shift(f)[idx]], 
-               newPointsLookup[shift(f)[idx], f[idx]]))}))
+      return(c(newPointsLookup[f[idx], shiftrotate(f)[idx]], 
+               newPointsLookup[shiftrotate(f)[idx], f[idx]]))}))
     allFaces[[length(allFaces)+1]] <- snubbedFace
   }
   
@@ -559,7 +550,7 @@ description <- function(p, debug=F)
   
   getFaceDescription <- function(f, addlengths=debug, addangles=debug)
   {
-    sidelengths <- round(distance(p$vertices[f,], p$vertices[shift(f),]),6)
+    sidelengths <- round(distance(p$vertices[f,], p$vertices[shiftrotate(f),]),6)
     baseDescr <- as.character(length(f))
     if (addlengths) {
       baseDescr <- paste0(baseDescr, " [length: ", combineDescriptions(sidelengths), "]")

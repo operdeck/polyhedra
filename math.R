@@ -1,6 +1,11 @@
 # Basic math stuff
 # there are libs with these as well but at least the below match the interfaces we use
 
+# shift elements from f one up or down
+shiftrotate <- function(x, n = 1) {
+  if (n == 0) x else c(tail(x, -n), head(x, n))
+}
+
 crossproduct <- function(ab, ac){
   abci = ab$y * ac$z - ac$y * ab$z
   abcj = ac$x * ab$z - ab$x * ac$z
