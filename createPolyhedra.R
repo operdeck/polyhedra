@@ -94,56 +94,13 @@ drawPoly <- function(p, start = c(0, 0, 0), delta = c(1, 0, 0), label = "", debu
     rgl.texts(start[1], start[2] + 2, start[3], text = label, color="blue", pos = 4, cex = 1)
   }
 }
-# rgl.close()
 
-# The function rgl_init() will create a new RGL device if requested or if there is no opened device:
-  
-#' @param new.device a logical value. If TRUE, creates a new device
-#' @param bg the background color of the device
-#' @param width the width of the device
-rgl_init <- function(new.device = FALSE, bg = "white", width = 640) {
-  if( new.device | rgl.cur() == 0 ) {
-    rgl.open()
-    par3d(windowRect = 50 + c( 0, 0, width, width ) )
-    rgl.bg(color = bg )
-  }
-  rgl.clear(type = c("shapes", "bboxdeco"))
-  rgl.viewpoint(theta = 15, phi = 20, zoom = 0.7)
-}
-
-## Gallery
-
-# open3d()
-# rgl.clear()
-# par3d("cex" = 0.7)
-rgl_init()
-
-tetrahedron <- buildRegularPoly(vertices = rbind(data.frame(x=1, y=1, z=1), data.frame(x=1, y=-1, z=-1), data.frame(x=-1, y=1, z=-1), data.frame(x=-1, y=-1, z=1)),
-                                polygonsize = 3,
-                                vertexsize = 3,
-                                name = "Tetrahedron")
-
-octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
-                               polygonsize = 3,
-                               vertexsize = 4,
-                               exampleEdge = c(1,3),
-                               name = "Octahedron")
-
+## Remaining Platonic solids
 cube <- dual(octahedron, name = "Cube")
-
-# all coords taken from https://en.wikipedia.org/wiki/Platonic_solid
-phi <- (1+sqrt(5))/2
-icosahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = 0, y = c(-1,1), z = c(-phi, phi)), 
-                                                 expand.grid(x = c(-1,1), y = c(-phi, phi), z = 0), 
-                                                 expand.grid(x = c(-phi, phi), y = 0, z = c(-1, 1))),
-                                polygonsize = 3,
-                                vertexsize = 5,
-                                name = "Icosahedron",
-                                debug = F)
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
-
 Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
 
+## Regular star solids
 greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
                                       polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6),
                                       name = "Great Dodecahedron")
@@ -162,10 +119,48 @@ greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dod
 KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, greatIcosahedron, greatStellatedDodecahedron)
 
 Regulars <- c(Platonics, KeplerPoinsots)
-stop()
-drawPoly(Regulars, delta = c(3, 0, 0), label = "Regular Polyhedra") # draw along the x-axis
 
 Duals <- lapply(Regulars[seq(length(Regulars))%%2==1], dual)
+
+## Debugging / Testing
+
+testDrawPoly <- function()
+{
+  clear3d()
+  drawAxes()
+  drawSinglePoly(tetrahedron)  
+  drawSinglePoly(octahedron)
+  
+  drawSinglePoly(tetrahedron, debug=T)  
+  
+  drawSinglePoly(cube)
+}
+
+testDrawPoly <- function()
+{
+  drawAxes()
+  drawPoly(Platonics, start = c(1, 1, 1), delta = c(1, 1, 1))
+  
+  drawPoly(KeplerPoinsots, start = c(1, 1, 3), delta = 1.5*c(1, 1, 1))
+}
+
+
+## Gallery
+
+# open3d()
+# rgl.clear()
+# par3d("cex" = 0.7)
+rgl_init()
+
+
+
+
+
+stop()
+clear3d()
+drawAxes()
+
+drawPoly(Regulars, delta = c(3, 0, 0), label = "Regular Polyhedra") # draw along the x-axis
 drawPoly(Duals, start = c(0, 0, -3), delta = c(6, 0, 0), label = "Duals of Regulars")
 
 combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(compose(p, dual(p))) })
@@ -187,6 +182,9 @@ compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
                                         exampleEdge = c(3, 8),
                                         name = "5 Tetrahedra")
 
+# TODO!
+# below 10 x {3,3} is still flickering but maybe this one has truly overlapping faces
+# so two triangles really form a {6/2} together
 dodecahedronStellations <- list(compound5tetrahedra,
                                 dual(compound5tetrahedra, name = "Dual 5 Tetrahedra"),
                                 archi(compound5tetrahedra, name = "Rhombic of 5 Tetrahedra"),
@@ -294,4 +292,6 @@ drawPoly(p, debug=T)
 #   
 #   https://www.polyhedra.net/en/pictures.php?type=c
 # 
+
+# rgl.close()
 

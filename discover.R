@@ -51,7 +51,7 @@ stop("issue:")
 #discover(dodecahedron) 
 poly <- buildRegularPoly(dodecahedron$vertices, 5, 6, c(1, 4))
 clear3d()
-drawSinglePoly(poly, debug = T) # this shows the error drawing {5/2}
+drawSinglePoly(poly, debug = T) # this shows the error drawing {5/2} # but now goes into a loop?
 topo <- getTopology(poly$faces, debug=T) # this errors out on edge 4-1 / into a loop
 
 # face is "below" origin

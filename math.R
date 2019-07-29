@@ -65,3 +65,4 @@ innerAngles <- function(coords, center = apply(coords,2,mean))
   return (sapply(seq(nrow(v1)), function(i) { vectorAngle(v1[i,], v2[i,]) }))
 }
 
+phi <- (1+sqrt(5))/2

@@ -604,6 +604,29 @@ description <- function(p, debug=F)
   return(polyDescription)
 }
 
+# Platonic solids
+# all coords taken from https://en.wikipedia.org/wiki/Platonic_solid
+
+tetrahedron <- buildRegularPoly(vertices = rbind(data.frame(x=1, y=1, z=1), data.frame(x=1, y=-1, z=-1), data.frame(x=-1, y=1, z=-1), data.frame(x=-1, y=-1, z=1)),
+                                polygonsize = 3,
+                                vertexsize = 3,
+                                name = "Tetrahedron")
+
+octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
+                               polygonsize = 3,
+                               vertexsize = 4,
+                               exampleEdge = c(1,3),
+                               name = "Octahedron")
+
+icosahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = 0, y = c(-1,1), z = c(-phi, phi)), 
+                                                 expand.grid(x = c(-1,1), y = c(-phi, phi), z = 0), 
+                                                 expand.grid(x = c(-phi, phi), y = 0, z = c(-1, 1))),
+                                polygonsize = 3,
+                                vertexsize = 5,
+                                name = "Icosahedron",
+                                debug = F)
+
+
 # description(octahedron)
 # description(cube)
 # description(smallStellatedDodecahedron)
