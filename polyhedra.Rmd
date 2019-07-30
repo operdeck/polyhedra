@@ -7,26 +7,49 @@ output:
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook to explore the construction of polyhedra using the construction code from (https://github.com/operdeck/polyhedra).
 
+A small list of basic polyhedra is constructed from pre-defined sets of coordinates and topology. More complex polyhedra can be built using transformations that turn them into their dual, snubbing, truncating, stellation and more. In addition there is a discovery mode where the vertices of one polyhedron are used to discover others by trying to fit different faces onto the vertices.
+
 # The Platonic solids
 
 A Platonic solid is a convex polyhedron whose faces and vertices are all of the same type. There are five such solids.
 
-Three of the Platonic solids are sort-of pre-defined. They are constructed from a set of vertex coordinates (given), a polygon and vertex description and an example edge size. 
+In this project, three of the Platonic solids are sort-of pre-defined. They are constructed from a set of vertex coordinates (given), a polygon and vertex description and an example edge size. 
 
-### TODO show how this works for e.g. tetrahedron
-
-The other two Platonic solids are derived as dual. These are the 5 Platonic colids:
+For example, below we construct an octahedron by passing in the 8 vertex coordinates, the size of the faces (3) ,the number of faces that each vertex has (4) and the edge size (size from vertex 1 to vertex 3). The *buildRegularPoly* function will then fit a number of faces (not specified up front) that fit this specification and use up all points.
 
 ```{r, warning=F, comment=F}
 source("polyhedra.R")
 source("draw.R")
 
+octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), 
+                                                expand.grid(x = 0, y = c(-1,1), z = 0), 
+                                                expand.grid(x = 0, y = 0, z = c(-1,1))),
+                               polygonsize = 3,
+                               vertexsize = 4,
+                               exampleEdge = c(1,3))
+```
+
+```{r, include=F}
+rgl_init(width=400, height=400)
+drawSinglePoly(octahedron, debug = T)
+snapshot3d("snapshots/octahedron.png", fmt = "png", top = TRUE )
+```
+
+![Octahedron](snapshots/octahedron.png)
+
+The tetrahedron and icosahedron are defined in a similar way in the project. The other two Platonic solids are derived by applying a *dual* transformation. Together that gets us the 5 Platonic colids:
+
+```{r, warning=F, comment=F}
+
 cube <- dual(octahedron, name = "Cube")
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
 Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
+```
 
-rgl_init(width=640, height=400)
+```{r, include=F}
+# TODO use screen better / other viewpoint
+rgl_init(width=640, height=400, new.device = T)
 drawPoly(Platonics, start = c(1, 1, 1), delta = c(2, 0, 0))
 snapshot3d("snapshots/platonics.png", fmt = "png", top = TRUE )
 ```
@@ -35,7 +58,7 @@ snapshot3d("snapshots/platonics.png", fmt = "png", top = TRUE )
 
 # The Kepler-Poinsot polyhedra
 
-The 4 other regular polyhedra can be derived from the Platonic solids by stellation. We take the vertices of the Platonic solids and fit regular polygons in it with defined size. The great stellated dodecahedron is defined as the dual of the great icosahedron but could have been defined in the same manner as the other three.
+The 4 other regular polyhedra can be derived from the Platonic solids by fitting other faces through the  vertex coordinates. The great stellated dodecahedron is defined as the dual of the great icosahedron but could have been defined in the same manner as the other three.
 
 ```{r}
 greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
@@ -54,29 +77,36 @@ greatIcosahedron <- buildRegularPoly(icosahedron$vertices,
 greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", 
                                    scaling = "vertex")
 
-KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, greatIcosahedron, greatStellatedDodecahedron)
+KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, 
+                       greatIcosahedron, greatStellatedDodecahedron)
 Regulars <- c(Platonics, KeplerPoinsots)
+```
 
-rgl_init(width=640, height=400)
+```{r, include=F}
+clear3d()
 drawPoly(KeplerPoinsots, start = c(1, 1, 1), delta = c(2, 0, 0))
 snapshot3d("snapshots/keplerpoinsots.png", fmt = "png", top = TRUE )
 ```
 
 ![Kepler-Poinsot Solids](snapshots/keplerpoinsots.png)
-Note the descriptions: while the name can (optionally) be set by the user, the description in parentheses is generated from the topology. 
+
+Note the descriptions that are displayed with the polyhedra: while the name can (optionally) be set by the user, the description in parentheses is generated from the topology. For example {3, 5/2} refers to the great icosahedron, which has 3-sided faces and a vertex figure of 5 going round in 2 cycles.
 
 # Transformations
 
 ## Dual transformation
 
-Some of the regular polyhedra shown were already created using the *dual* transform. This turns faces into vertices and vertices into faces. The duals of the regular polyhedra are also regular polyhedra.
+Some of the regular polyhedra were created using the *dual* transform. This turns faces into vertices and vertices into faces. The duals of the regular polyhedra are also regular polyhedra.
 
 Combining the duals with the originals is sometimes interesting, although in one case the dual completely occludes the original.
 
 ```{r}
 combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(compose(p, dual(p))) })
+```
 
-rgl_init(width=640, height=400)
+```{r, include=F}
+# TODO better layout, maybe two rows
+clear3d()
 drawPoly(combis, start = c(1, 1, 1), delta = c(2, 1, 0))
 snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
 ```
