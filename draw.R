@@ -44,7 +44,15 @@ rgl_init <- function(new.device = FALSE, bg = "white", width = 640, height = wid
 #   
 # }
 
-drawStarPolygon <- function(vertexIndices, vertexCoords, col="grey", alpha=1, offset=c(0,0,0))
+
+# Draws a star polygon with intersecting vertices.
+
+# NB perhaps could be a lot simpler by getting the vertices in actual order, finding
+# the intersections of the edges of neighbouring vertices, then defining a new face 
+# with 2*N vertices. Perhaps polygon3d can then even draw that directly. Also perhaps
+# this function should just be a "decompose", returning a list of simple faces that can
+# be passed on to actual drawing functions.
+drawStarPolygon <- function(vertexIndices, vertexCoords, col="grey", alpha=1, offset=c(0,0,0), debug=F)
 {
   # Find all line segment pairs of this face, excluding line segments that are already adjecent to eachother.
   segmentPairs <- as.data.table(t(combn(seq(length(vertexIndices)),2)))
@@ -78,8 +86,10 @@ drawStarPolygon <- function(vertexIndices, vertexCoords, col="grey", alpha=1, of
   intersections[, intersectionIdx := seq(.N)]
   
   # for debugging only:
-  spheres3d(intersections$Ix, intersections$Iy, intersections$Iz, color="green", radius = 0.02)
-  text3d(intersections$Ix+0.05, intersections$Iy, intersections$Iz, color="black", text=intersections$intersectionIdx)
+  if (debug) {
+    spheres3d(intersections$Ix, intersections$Iy, intersections$Iz, color="green", radius = 0.02)
+    text3d(intersections$Ix+0.05, intersections$Iy, intersections$Iz, color="black", text=intersections$intersectionIdx)
+  }
   
   # Intersections is a very compact representation, expand it to get a list from all face vertices to all intersection points.
   allIntersections <- rbind(data.table(from = intersections$seg1From,
@@ -131,7 +141,7 @@ drawStarPolygon <- function(vertexIndices, vertexCoords, col="grey", alpha=1, of
   polygon3d( offset[1] + middlepolygon$Ix[order(middlepolygon$rank)],
              offset[2] + middlepolygon$Iy[order(middlepolygon$rank)], 
              offset[3] + middlepolygon$Iz[order(middlepolygon$rank)], 
-             col="yellow", alpha=alpha)
+             col=col, alpha=alpha)
 }
 
 drawAxes <- function()
@@ -218,7 +228,7 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
           faceColor <- rainbow(length(p$faces))[f]
         }
       }
-      drawPolygon(p$faces[[f]], p$vertices, faceColor, alpha, c(x, y, z), debug, label=paste0("F",f)) 
+      drawPolygon(p$faces[[f]], p$vertices, faceColor, alpha, c(x, y, z), label=paste0("F",f), drawlines=debug) 
     }
   }
 }
@@ -235,89 +245,6 @@ drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debu
   }
 }
 # rgl.close()
-
-# The function rgl_init() will create a new RGL device if requested or if there is no opened device:
-drawSinglePoly <- function(p, x=0, y=0, z=0, label="", debug=F)
-{
-  if (debug) {
-    spacing <- 0.1
-    alpha <- 0.6 # in debug make somewhat transparent
-    spheres3d(x + p$vertices$x, y + p$vertices$y, z + p$vertices$z, color="grey", radius = 0.01)
-    text3d(x + (1+spacing)*p$vertices$x, y + (1+spacing)*p$vertices$y, z + (1+spacing)*p$vertices$z, text = seq(nrow(p$vertices)), color="blue")
-  } else {
-    alpha <- 1
-  }
-  label <- paste(label, "(", description(p), ")")
-  if (nchar(label) > 0) {
-    text3d(x, y + min(p$vertices$y) - 1, z, text = label, color = "black", cex=0.7, pos = 1)
-  }
-  if (length(p$faces) > 0) { 
-    if (!debug) {
-      bodies <- findDistinctBodies(p) # this call is too heavy when in debug mode and may not work
-      if (length(bodies) > 1) {
-        bodyColors <- rainbow(length(bodies))
-      }
-    } else {
-      bodies <- list()
-    }
-    faceType <- as.integer(factor(sapply(p$faces, length))) # faces considered same just by nr of edges
-    if (max(faceType) > 1) {
-      faceTypeColors <- rainbow(max(faceType))  
-    }
-    for (f in seq(length(p$faces))) {
-      if (length(bodies) > 1) {
-        faceColor <- bodyColors[which(sapply(bodies, function(b) { return(f %in% b)}))]
-      } else {
-        if (max(faceType) > 1) {
-          faceColor <- faceTypeColors[faceType[f]]
-        } else {
-          faceColor <- rainbow(length(p$faces))[f]
-        }
-      }
-      cx = mean(p$vertices$x[p$faces[[f]]])
-      cy = mean(p$vertices$y[p$faces[[f]]])
-      cz = mean(p$vertices$z[p$faces[[f]]])
-      if (debug) {
-        text3d(x + cx, y + cy, z + cz, text = paste0("F",f), color="black")
-      }
-      if (length(p$faces[[f]]) > 3) { 
-        # for > 3 vertices triangulize: draw triangles between center of face and all edges
-        
-        # TODO this does not work well for {5/2} - just try plot in isolation
-        
-        rotatedFace <- shiftrotate(p$faces[[f]])
-        for (t in seq(length(p$faces[[f]]))) {
-          p1 <- p$faces[[f]][t]
-          p2 <- rotatedFace[t]
-          # NB not sure about the orientation of the triangle - may have to check on this
-          triangles3d( x + c(p$vertices$x[c(p1,p2)],cx), 
-                       y + c(p$vertices$y[c(p1,p2)],cy), 
-                       z + c(p$vertices$z[c(p1,p2)],cz), 
-                       col=faceColor, alpha=alpha) # "red"
-        }
-      } else {
-        # NB not sure about the orientation of the triangle - may have to check on this
-        triangles3d( x + p$vertices$x[p$faces[[f]]],
-                     y + p$vertices$y[p$faces[[f]]], 
-                     z + p$vertices$z[p$faces[[f]]], 
-                     col=faceColor, alpha=alpha)
-      }
-    }
-  }
-}
-
-drawPoly <- function(p, start = c(0, 0, 0), delta = c(1, 0, 0), label = "", debug=F)
-{
-  if (!is.null(names(p))) {
-    drawSinglePoly(p, start[1], start[2], start[3], p$name, debug)
-  } else {
-    for (i in seq(length(p))) {
-      drawSinglePoly(p[[i]], start[1] + (i-1)*delta[1], start[2] + (i-1)*delta[2], start[3] + (i-1)*delta[3], p[[i]]$name, debug)  
-    }
-    rgl.texts(start[1], start[2] + 2, start[3], text = label, color="blue", pos = 4, cex = 1)
-  }
-}
-
 
 
 # draw a n/d polygon
@@ -346,3 +273,27 @@ testDrawPolygons <- function()
   testDrawPolygon(8,3) # more complex star
   #testDrawPolygon(8,2) # also a star, generation of this is slightly more complex
 }
+
+## Debugging / Testing
+
+testDrawPoly <- function()
+{
+  clear3d()
+  drawAxes()
+  drawSinglePoly(tetrahedron)  
+  drawSinglePoly(octahedron)
+  
+  drawSinglePoly(tetrahedron, debug=T)  
+  
+  drawSinglePoly(cube)
+}
+
+testDrawPoly <- function()
+{
+  drawAxes()
+  drawPoly(Platonics, start = c(1, 1, 1), delta = c(1, 1, 1))
+  
+  drawPoly(KeplerPoinsots, start = c(1, 1, 3), delta = 1.5*c(1, 1, 1))
+}
+
+

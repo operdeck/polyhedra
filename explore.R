@@ -1,17 +1,5 @@
-library(rgl)
-
-source("math.R")
 source("polyhedra.R")
-
-#open3d()
-#shade3d( icosahedron3d() )
-#writeOBJ(filename)
-
-#rgl.spheres(vertices$x, vertices$y, vertices$z, r=0.2, color="yellow")
-#rgl.texts(vertices$x, vertices$y, vertices$z, text = seq(nrow(vertices)), color="red")
-
-# 3D tricks (movie, HTML interactive export, points highlighting)
-# http://www.sthda.com/english/wiki/a-complete-guide-to-3d-visualization-device-system-in-r-r-software-and-data-visualization#prepare-the-data
+source("draw.R")
 
 # Draw a single polygon. Offset is optional.
 ## Remaining Platonic solids
@@ -41,41 +29,7 @@ Regulars <- c(Platonics, KeplerPoinsots)
 
 Duals <- lapply(Regulars[seq(length(Regulars))%%2==1], dual)
 
-## Debugging / Testing
 
-testDrawPoly <- function()
-{
-  clear3d()
-  drawAxes()
-  drawSinglePoly(tetrahedron)  
-  drawSinglePoly(octahedron)
-  
-  drawSinglePoly(tetrahedron, debug=T)  
-  
-  drawSinglePoly(cube)
-}
-
-testDrawPoly <- function()
-{
-  drawAxes()
-  drawPoly(Platonics, start = c(1, 1, 1), delta = c(1, 1, 1))
-  
-  drawPoly(KeplerPoinsots, start = c(1, 1, 3), delta = 1.5*c(1, 1, 1))
-}
-
-
-## Gallery
-
-# open3d()
-# rgl.clear()
-# par3d("cex" = 0.7)
-rgl_init()
-
-
-
-
-
-stop()
 clear3d()
 drawAxes()
 
@@ -85,7 +39,7 @@ drawPoly(Duals, start = c(0, 0, -3), delta = c(6, 0, 0), label = "Duals of Regul
 combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(compose(p, dual(p))) })
 drawPoly(combis, start = c(0, 0, -6), delta = c(6, 0, 0), label = "Combined")
 
-archis <- lapply(Regulars[seq(length(Regulars))%%2==1], archi)
+archis <- lapply(Regulars, archi)
 drawPoly(archis, start = c(0, 0, -9), delta = c(6, 0, 0), label = "Rhombic")
 
 # cubedirect <- buildRegularPoly(vertices = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
@@ -110,6 +64,9 @@ dodecahedronStellations <- list(compound5tetrahedra,
                                 compose(compound5tetrahedra, dual(compound5tetrahedra), name = "10 Tetrahedra"))
 
 drawPoly(dodecahedronStellations, start = c(3*4, 6, 0), delta = c(0, 0, -5), label = "Stellations Dodecahedron")
+
+clear3d()
+drawSinglePoly(dual(archi(octahedron)))
 
 # below does not look entirely OK, there are clashing faces but
 # this could be due to the way {5/2} etc are trianglulized currently
@@ -138,7 +95,7 @@ moreDodecahedronStellations <- list(compound5Cubes, dual(compound5Cubes), archi(
 drawPoly(moreDodecahedronStellations, start = c(3*5, 6, 0), delta = c(0, 0, -5))
 # this one we saw before: dual(compound5Cubes)
 
-
+clear3d()
 # looks nice but faces overlap?
 #drawPoly(archi(compound10Cubes), x = 3, y = -3, label="many archis") ### 5??
 
@@ -149,41 +106,8 @@ drawPoly(moreDodecahedronStellations, start = c(3*5, 6, 0), delta = c(0, 0, -5))
 # movie:
 # movie3d(spin3d(axis = c(1, 1, 1)), duration = 3, dir = getwd())
 
-stop("Brute force below")
 
-# can we brute-force our way through the possibilities?
 rgl_init()
-p <- dodecahedron #icosahedron
-vexPairs <- combn(x = seq(nrow(p$vertices)), m = 2)
-vexPairs <- data.frame(t(vexPairs), dist=sapply(seq(ncol(vexPairs)), function(col) { return(distance(p$vertices[vexPairs[1,col],], p$vertices[vexPairs[2,col],]))}))
-vexPairs <- vexPairs[order(vexPairs$dist),]
-vexPairs$isUnique <- T
-row.names(vexPairs) <- NULL
-for (i in 2:nrow(vexPairs)) {
-  if (deltaEquals(vexPairs$dist[i-1], vexPairs$dist[i])) { vexPairs$isUnique[i] <- F }
-}
-vexPairs <- vexPairs[(vexPairs$isUnique),] # this is now a short list of vertex index pairs
-
-discovery <- expand.grid(polygonsize = 3:5, vertexsize = 3:20, vexPair = 1:nrow(vexPairs))
-discovery$isPolygon <- F
-for (i in seq(nrow(discovery))) {
-  # NB it also creates polys with holes in it
-  #some of the ones from dodecahedron are new!
-  poly <- buildRegularPoly(p$vertices, discovery$polygonsize[i], discovery$vertexsize[i], c(vexPairs$X1[discovery$vexPair[i]], vexPairs$X2[discovery$vexPair[i]]))
-  if (poly$n_faces > 0) {
-    cat("Success!", discovery$polygonsize[i], discovery$vertexsize[i], vexPairs$X1[discovery$vexPair[i]], vexPairs$X2[discovery$vexPair[i]], fill=T)
-    discovery$isPolygon[i] <- T
-    drawPoly(poly, x=2*sum(discovery$isPolygon), debug=F)
-  }
-}
-
-# Now that we have the orientation covered, try list the edges in a constructive way so we
-# can build snub, chop, and maybe better duals as well
-# We could test the misbehaving duals with even just a partial polyhedron perhaps
-
-# figure out the topology
-
-rgl_init
 clear3d()
 drawPoly(p, debug=T)
 # orientation is clockwise when looking at face

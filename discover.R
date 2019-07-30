@@ -1,6 +1,7 @@
 # Discover new polyhedra
 
 source("polyhedra.R")
+source("draw.R")
 
 discover <- function(p, debug=F)
 {
@@ -20,12 +21,14 @@ discover <- function(p, debug=F)
   
   searchgrid <- expand.grid(facedim = 3:5, vertexdim = 3:20, vexPair = 1:nrow(vexPairs))
   searchgrid$isPolygon <- F
-  searchgrid$vertex1 <- sapply(seq(nrow(searchgrid)), function(i) {vexPairs$X1[searchgrid$vexPair[i]]})
-  searchgrid$vertex2 <- sapply(seq(nrow(searchgrid)), function(i) {vexPairs$X2[searchgrid$vexPair[i]]})
+  searchgrid$vertex1 <- sapply(seq(nrow(searchgrid)), function(i) {vexPairs$V1[searchgrid$vexPair[i]]})
+  searchgrid$vertex2 <- sapply(seq(nrow(searchgrid)), function(i) {vexPairs$V2[searchgrid$vexPair[i]]})
   for (i in seq(nrow(searchgrid))) {
     # NB it also creates polys with holes in it
     # some of the ones from dodecahedron are new!
-    poly <- buildRegularPoly(p$vertices, searchgrid$facedim[i], searchgrid$vertexdim[i], c(searchgrid$vertex1[i], searchgrid$vertex2[i]), debug=debug)
+    poly <- buildRegularPoly(p$vertices, searchgrid$facedim[i], 
+                             searchgrid$vertexdim[i], 
+                             c(searchgrid$vertex1[i], searchgrid$vertex2[i]), debug=debug)
     if (length(poly$faces) > 0) {
       print("Success!")
       searchgrid$isPolygon[i] <- T
@@ -47,8 +50,9 @@ discover <- function(p, debug=F)
 # if (debug) print("All done!")
 #discover(archi(dodecahedron), debug=F)
 
-stop("issue:")
-#discover(dodecahedron) 
+stop("issues below:")
+
+discover(dodecahedron, debug=T) # problems
 poly <- buildRegularPoly(dodecahedron$vertices, 5, 6, c(1, 4))
 clear3d()
 drawSinglePoly(poly, debug = T) # this shows the error drawing {5/2} # but now goes into a loop?

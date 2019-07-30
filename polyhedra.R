@@ -201,6 +201,11 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
 #       - the indices of the vertices connected to this vertex (in order)
 getTopology <- function(faces, debug=F)
 {
+  if (!is.null(names(faces))) {
+    if (is.list(faces) & "faces" %in% names(faces)) {
+      faces <- faces$faces # this method is commonly called with a polygon instead of just the faces
+    }
+  }
   n_vertices <- max(sapply(faces, max))
   foundAnyGaps <- F
   
@@ -238,7 +243,9 @@ getTopology <- function(faces, debug=F)
           #            "already present:", vexToRFace[currentFace[i], currentFaceS[i]],
           #            "while wanting to set to", currentFaceNr,
           #            "is the orientation consistent?"))
-          # TODO perhaps rotate 
+          # TODO perhaps rotate ? or keep the fact that this face is rotated in another
+          # matrix of i/j to face, with rotated faces as -1, then for those faces use
+          # vexToRFace the other way around?
         } else {
           # edge is fully occupied, this is an error
           stop(paste("Both edges", currentFace[i], "-", currentFaceS[i], 
@@ -355,7 +362,9 @@ findDistinctBodies <- function(p, topo = getTopology(p$faces), debug=F)
     repeat {
       f <- body[bodycount]
       # vertices around this face
-      vex <- which(sapply(conn, function(c) { return(f %in% c$faces)}))
+      isConnectedToFace <- sapply(conn, function(c) { return(f %in% c$faces)})
+      if (length(isConnectedToFace) == 0) return(body) # f not connected, treat as separate body
+      vex <- which(isConnectedToFace)
       # faces connected to any of these vertices
       connectedFaces <- unique(as.vector(sapply(vex, function(x) {return(conn[[x]]$faces)})))
       if (debug) cat("connected faces to", f, ":", paste(connectedFaces, collapse = ", "), fill=T)

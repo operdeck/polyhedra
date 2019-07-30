@@ -9,6 +9,8 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook to explore the co
 
 A small list of basic polyhedra is constructed from pre-defined sets of coordinates and topology. More complex polyhedra can be built using transformations that turn them into their dual, snubbing, truncating, stellation and more. In addition there is a discovery mode where the vertices of one polyhedron are used to discover others by trying to fit different faces onto the vertices.
 
+PS inspiration for a very nice RPub: http://rpubs.com/RexGalilae/weather-events
+
 # The Platonic solids
 
 A Platonic solid is a convex polyhedron whose faces and vertices are all of the same type. There are five such solids.
@@ -26,7 +28,8 @@ octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, 
                                                 expand.grid(x = 0, y = 0, z = c(-1,1))),
                                polygonsize = 3,
                                vertexsize = 4,
-                               exampleEdge = c(1,3))
+                               exampleEdge = c(1,3),
+                               name = "Octahedron")
 ```
 
 ```{r, include=F}
@@ -101,24 +104,119 @@ Some of the regular polyhedra were created using the *dual* transform. This turn
 Combining the duals with the originals is sometimes interesting, although in one case the dual completely occludes the original.
 
 ```{r}
+# Since the combinations of regular solids with their duals are symmetrical, we
+# only apply it to half of them
 combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(compose(p, dual(p))) })
 ```
 
 ```{r, include=F}
 # TODO better layout, maybe two rows
 clear3d()
-drawPoly(combis, start = c(1, 1, 1), delta = c(2, 1, 0))
+drawPoly(combis, start = c(1, 1, 1), delta = c(2, 0, 0))
 snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
 ```
 
 ![Combination of regular polyhedra with their duals](snapshots/regulars-with-duals.png)
+
 ## Archi transformation
 
-TODO describe
+### Rhombic Archimedean solids
 
-## Other stellations
+The first of the transformations to turn regular solids into Archimedean solids turns each edge into a new vertex. Old faces basically become rotated as their new points are the mids of their old edges. Every vertex of the old solid becomes a new face of its own.
 
-TODO describe
+```{r}
+# Here as well, since applying to regular solids only need to do half of them
+rhombicarchimedeans <- lapply(Regulars[seq(length(Regulars))%%2==1], archi)
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(rhombicarchimedeans, start = c(1, 1, 1), delta = c(2, 0, 0))
+snapshot3d("snapshots/rhombicarchimedeans.png", fmt = "png", top = TRUE )
+```
+
+![Rhombic Archimedean solids](snapshots/rhombicarchimedeans.png)
+
+## Various stellations
+
+### 5 Tetrahedra
+
+Compound of 5 tetrahedra. The dual of this turns the other way around.
+
+```{r}
+compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
+                                        polygonsize = 3,
+                                        vertexsize = 3,
+                                        exampleEdge = c(3, 8),
+                                        name = "5 Tetrahedra")
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(list(compound5tetrahedra, dual(compound5tetrahedra)), 
+         start = c(1, 1, 1), delta = c(2, 0, 0))
+snapshot3d("snapshots/compound5tetrahedra.png", fmt = "png", top = TRUE )
+```
+
+![5 Tetrahedra with dual](snapshots/compound5tetrahedra.png)
+
+The "rhombic" transformation of this turns it into the compound of 5 octahedra.
+
+```{r}
+compound5octahedra <- archi(compound5tetrahedra, name = "5 Octahedra")
+```
+
+```{r, include=F}
+clear3d()
+drawSinglePoly(compound5octahedra)
+snapshot3d("snapshots/compound5octahedra.png", fmt = "png", top = TRUE )
+```
+
+![5 Octahedra](snapshots/compound5octahedra.png)
+
+Combining it with its dual creates 10 tetrahedra.
+
+NB currently issues with rendering, probably because there are overlapping faces basically 
+creating a sort of {6/2} face out of two {3} that is not drawn properly.
+
+```{r}
+compound10terahedra <- compose(compound5tetrahedra, dual(compound5tetrahedra), 
+                               name = "10 Tetrahedra")
+```
+
+```{r, include=F}
+clear3d()
+drawSinglePoly(compound10terahedra)
+snapshot3d("snapshots/compound10terahedra.png", fmt = "png", top = TRUE )
+```
+
+![10 Tetrahedra](snapshots/compound10terahedra.png)
+
+### 5 Cubes
+
+The compound of 5 cubes shares the vertices of the dodecahedron. The dual of this one is the compound of 5 tetrahedra (not suprisingly) while the "rhombic" transform turns it into 5 of one of the simpler Archimedean solids {3,4,3,4}.
+
+NB that last one again suffers from rendering issues.
+
+```{r}
+compound5Cubes <- buildRegularPoly(dodecahedron$vertices,
+                                    polygonsize = 4,
+                                    vertexsize = 6,
+                                    exampleEdge = c(1, 8),
+                                   name = "5 Cubes")
+moreDodecahedronStellations <- list(compound5Cubes, 
+                                    dual(compound5Cubes), 
+                                    archi(compound5Cubes))
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(moreDodecahedronStellations, 
+         start = c(1, 1, 1), delta = c(2, 0, 0))
+snapshot3d("snapshots/compound5cubes.png", fmt = "png", top = TRUE )
+```
+
+![5 Cubes and variations](snapshots/compound5cubes.png)
 
 ## Discovery mode
 
@@ -138,6 +236,12 @@ Wolfram has a fairly complete set of operations, see https://reference.wolfram.c
 
 - all the icosahedron stellations as listed in e.g. (http://mathworld.wolfram.com/IcosahedronStellations.html). There exists a Wolfram Language function Stellate[poly, ratio] in the Wolfram Language package PolyhedronOperations` , although it actually replaces faces with pyramids (i.e., performs what is properly known as augmentation), and therefore does not perform true stellation.
 
+- Systematic list of all Archimedean solids and the operations to support: https://en.wikipedia.org/wiki/Archimedean_solid
+
+- Catalan solids, have a think: https://www.software3d.com/Archimedean.php
+
+- List of compounds I should be able to generate (currently not all e.g. 4 cubes): https://www.polyhedra.net/en/pictures.php?type=c
+ 
 
 
 
