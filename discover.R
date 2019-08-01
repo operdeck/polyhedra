@@ -8,9 +8,9 @@ discover <- function(p, debug=F)
   clear3d()
   
   # find unique distance pairs
-  vexPairs <- combn(x = seq(nrow(p$vertices)), m = 2)
+  vexPairs <- combn(x = seq(nrow(p$coords)), m = 2)
   vexPairs <- data.table(t(vexPairs), 
-                         dist=sapply(seq(ncol(vexPairs)), function(col) { return(distance(p$vertices[vexPairs[1,col],], p$vertices[vexPairs[2,col],]))}))
+                         dist=sapply(seq(ncol(vexPairs)), function(col) { return(distance(p$coords[vexPairs[1,col],], p$coords[vexPairs[2,col],]))}))
   vexPairs <- vexPairs[order(vexPairs$dist),]
   vexPairs$isUnique <- T
   row.names(vexPairs) <- NULL
@@ -26,7 +26,7 @@ discover <- function(p, debug=F)
   for (i in seq(nrow(searchgrid))) {
     # NB it also creates polys with holes in it
     # some of the ones from dodecahedron are new!
-    poly <- buildRegularPoly(p$vertices, searchgrid$facedim[i], 
+    poly <- buildRegularPoly(p$coords, searchgrid$facedim[i], 
                              searchgrid$vertexdim[i], 
                              c(searchgrid$vertex1[i], searchgrid$vertex2[i]), debug=debug)
     if (length(poly$faces) > 0) {
@@ -53,7 +53,7 @@ discover <- function(p, debug=F)
 stop("issues below:")
 
 discover(dodecahedron, debug=T) # problems
-poly <- buildRegularPoly(dodecahedron$vertices, 5, 6, c(1, 4))
+poly <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4))
 clear3d()
 drawSinglePoly(poly, debug = T) # this shows the error drawing {5/2} # but now goes into a loop?
 topo <- getTopology(poly$faces, debug=T) # this errors out on edge 4-1 / into a loop
@@ -61,7 +61,7 @@ topo <- getTopology(poly$faces, debug=T) # this errors out on edge 4-1 / into a 
 # face is "below" origin
 faces <- poly$faces
 debug <- T
-simplified <- list(vertices=poly$vertices, faces=list(poly$faces[[1]], poly$faces[[2]]), name="debug")
+simplified <- list(coords=poly$coords, faces=list(poly$faces[[1]], poly$faces[[2]]), name="debug")
 print(simplified$faces[[1]])
 print(simplified$faces[[2]])
 drawSinglePoly(simplified, debug = T) # shows drawing error and orientation issue when using [[1]],[[2]]

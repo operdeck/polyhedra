@@ -23,7 +23,7 @@ For example, below we construct an octahedron by passing in the 8 vertex coordin
 source("polyhedra.R")
 source("draw.R")
 
-octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), 
+octahedron <- buildRegularPoly(coords = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), 
                                                 expand.grid(x = 0, y = c(-1,1), z = 0), 
                                                 expand.grid(x = 0, y = 0, z = c(-1,1))),
                                polygonsize = 3,
@@ -64,15 +64,15 @@ snapshot3d("snapshots/platonics.png", fmt = "png", top = TRUE )
 The 4 other regular polyhedra can be derived from the Platonic solids by fitting other faces through the  vertex coordinates. The great stellated dodecahedron is defined as the dual of the great icosahedron but could have been defined in the same manner as the other three.
 
 ```{r}
-greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
+greatDodecahedron <- buildRegularPoly(coords = icosahedron$coords, 
                                       polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6),
                                       name = "Great Dodecahedron")
-smallStellatedDodecahedron <- buildRegularPoly(icosahedron$vertices,
+smallStellatedDodecahedron <- buildRegularPoly(icosahedron$coords,
                                                polygonsize = 5,
                                                vertexsize = 5,
                                                exampleEdge = c(1,7),
                                                name = "Small Stellated Dodecahedron")
-greatIcosahedron <- buildRegularPoly(icosahedron$vertices,
+greatIcosahedron <- buildRegularPoly(icosahedron$coords,
                                      polygonsize = 3,
                                      vertexsize = 5,
                                      exampleEdge = c(2, 6),
@@ -87,7 +87,7 @@ Regulars <- c(Platonics, KeplerPoinsots)
 
 ```{r, include=F}
 clear3d()
-drawPoly(KeplerPoinsots, start = c(1, 1, 1), delta = c(2, 0, 0))
+drawPoly(KeplerPoinsots, start = c(1, 1, 1), delta = c(2, -0.5, 0))
 snapshot3d("snapshots/keplerpoinsots.png", fmt = "png", top = TRUE )
 ```
 
@@ -112,7 +112,7 @@ combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(com
 ```{r, include=F}
 # TODO better layout, maybe two rows
 clear3d()
-drawPoly(combis, start = c(1, 1, 1), delta = c(2, 0, 0))
+drawPoly(combis, start = c(1, 1, 1), delta = c(2, -0.5, 0))
 snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
 ```
 
@@ -131,7 +131,7 @@ rhombicarchimedeans <- lapply(Regulars[seq(length(Regulars))%%2==1], archi)
 
 ```{r, include=F}
 clear3d()
-drawPoly(rhombicarchimedeans, start = c(1, 1, 1), delta = c(2, 0, 0))
+drawPoly(rhombicarchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0))
 snapshot3d("snapshots/rhombicarchimedeans.png", fmt = "png", top = TRUE )
 ```
 
@@ -144,7 +144,7 @@ snapshot3d("snapshots/rhombicarchimedeans.png", fmt = "png", top = TRUE )
 Compound of 5 tetrahedra. The dual of this turns the other way around.
 
 ```{r}
-compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
+compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
                                         polygonsize = 3,
                                         vertexsize = 3,
                                         exampleEdge = c(3, 8),
@@ -154,7 +154,7 @@ compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
 ```{r, include=F}
 clear3d()
 drawPoly(list(compound5tetrahedra, dual(compound5tetrahedra)), 
-         start = c(1, 1, 1), delta = c(2, 0, 0))
+         start = c(1, 1, 1), delta = c(2, -0.5, 0))
 snapshot3d("snapshots/compound5tetrahedra.png", fmt = "png", top = TRUE )
 ```
 
@@ -199,7 +199,7 @@ The compound of 5 cubes shares the vertices of the dodecahedron. The dual of thi
 NB that last one again suffers from rendering issues.
 
 ```{r}
-compound5Cubes <- buildRegularPoly(dodecahedron$vertices,
+compound5Cubes <- buildRegularPoly(dodecahedron$coords,
                                     polygonsize = 4,
                                     vertexsize = 6,
                                     exampleEdge = c(1, 8),
@@ -211,8 +211,7 @@ moreDodecahedronStellations <- list(compound5Cubes,
 
 ```{r, include=F}
 clear3d()
-drawPoly(moreDodecahedronStellations, 
-         start = c(1, 1, 1), delta = c(2, 0, 0))
+drawPoly(moreDodecahedronStellations, start = c(1, 1, 1), delta = c(2, -0.5, 0))
 snapshot3d("snapshots/compound5cubes.png", fmt = "png", top = TRUE )
 ```
 
@@ -242,7 +241,7 @@ Wolfram has a fairly complete set of operations, see https://reference.wolfram.c
 
 - List of compounds I should be able to generate (currently not all e.g. 4 cubes): https://www.polyhedra.net/en/pictures.php?type=c
  
-
+- Compound of 3 cubes also exists: https://en.wikipedia.org/wiki/Cube
 
 
 

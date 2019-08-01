@@ -7,40 +7,44 @@ shiftrotate <- function(x, n = 1) {
 }
 
 crossproduct <- function(ab, ac){
-  abci = ab$y * ac$z - ac$y * ab$z
-  abcj = ac$x * ab$z - ab$x * ac$z
-  abck = ab$x * ac$y - ac$x * ab$y
-  return (c(x=abci, y=abcj, z=abck))
-}
-
-crossproductv <- function(ab, ac){
   abci = ab[2] * ac[3] - ac[2] * ab[3]
   abcj = ac[1] * ab[3] - ab[1] * ac[3]
   abck = ab[1] * ac[2] - ac[1] * ab[2]
-  return (c(x=abci, y=abcj, z=abck))
+  return (c(abci, abcj, abck))
 }
 
 # Length of point p passed in as a vector of values
-vectorlength <- function(vertex)
+vectorlength <- function(coords)
 {
-  return(sqrt(sum(vertex^2)))
+  return(sqrt(sum(coords^2)))
 }
 
-normalizedistances <- function(vertices) 
+normalizedistances <- function(coords) 
 {
-  return (vertices/apply(vertices, 1, vectorlength))
+  return (coords/apply(coords, 1, vectorlength))
 }
 
-normal <- function(point1, point2, point3)
+normal <- function(p1, p2, p3)
 {
-  n <- crossproduct(point2-point1, point3-point1)
+  n <- crossproduct(p2-p1, p3-p1)
   return (n / vectorlength(n))
 }
 
-# distance between two points both given as lists
 distance <- function(a, b)
 {
-  return (sqrt((a$x-b$x)^2 + (a$y-b$y)^2 + (a$z-b$z)^2 ))
+  if (is.matrix(a)) {
+    if (is.matrix(b)) {
+      return (sqrt(sum((a-b)^2))) # both are a matrix
+    } else {
+      return (sqrt(rowSums((matrix(rep(b,nrow(a)),nrow=nrow(a),byrow=T) - b)^2)))
+    }
+  } else {
+    if (is.matrix(b)) {
+      return (sqrt(rowSums((matrix(rep(a,nrow(b)),nrow=nrow(b),byrow=T) - b)^2)))
+    } else {
+      return (sqrt(sum((a-b)^2))) # both not a matrix
+    }
+  }
 }
 
 deltaEquals <- function(x, y, delta = 1e-6)

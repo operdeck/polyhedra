@@ -8,15 +8,15 @@ dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
 
 ## Regular star solids
-greatDodecahedron <- buildRegularPoly(vertices = icosahedron$vertices, 
+greatDodecahedron <- buildRegularPoly(coords = icosahedron$coords, 
                                       polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6),
                                       name = "Great Dodecahedron")
-smallStellatedDodecahedron <- buildRegularPoly(icosahedron$vertices,
+smallStellatedDodecahedron <- buildRegularPoly(icosahedron$coords,
                                                polygonsize = 5,
                                                vertexsize = 5,
                                                exampleEdge = c(1,7),
                                                name = "Small Stellated Dodecahedron")
-greatIcosahedron <- buildRegularPoly(icosahedron$vertices,
+greatIcosahedron <- buildRegularPoly(icosahedron$coords,
                                      polygonsize = 3,
                                      vertexsize = 5,
                                      exampleEdge = c(2, 6),
@@ -42,14 +42,14 @@ drawPoly(combis, start = c(0, 0, -6), delta = c(6, 0, 0), label = "Combined")
 archis <- lapply(Regulars, archi)
 drawPoly(archis, start = c(0, 0, -9), delta = c(6, 0, 0), label = "Rhombic")
 
-# cubedirect <- buildRegularPoly(vertices = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
+# cubedirect <- buildRegularPoly(coords = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
 #                                polygonsize = 4,
 #                                vertexsize = 3,
 #                                debug=T)
 
 # this family (4) should be shown
 
-compound5tetrahedra <- buildRegularPoly(dodecahedron$vertices,
+compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
                                         polygonsize = 3,
                                         vertexsize = 3,
                                         exampleEdge = c(3, 8),
@@ -79,14 +79,14 @@ drawSinglePoly(dual(archi(octahedron)))
 # as when composing. Plus lifting that restriction used to fail a few other polyhedra 
 # although that no longer seems to be the case. A possible way out could be to combine
 # those faces
-# compound10tetrahedra <- buildRegularPoly(dodecahedron$vertices,
+# compound10tetrahedra <- buildRegularPoly(dodecahedron$coords,
 #                                         polygonsize = 3,
 #                                         vertexsize = 6,
 #                                         exampleEdge = c(3, 8), debug=T)
 
 # Dodecahedron stellation family
 
-compound5Cubes <- buildRegularPoly(dodecahedron$vertices,
+compound5Cubes <- buildRegularPoly(dodecahedron$coords,
                                     polygonsize = 4,
                                     vertexsize = 6,
                                     exampleEdge = c(1, 8),

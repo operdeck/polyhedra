@@ -3,52 +3,22 @@
 library(data.table)
 
 source("math.R")
+source("draw.R")
 
 # Returns T if outward facing (= rotating anti-clockwise when looking down towards face in direction of origin)
 isNormalOutwardFacing <- function(p, f)
 {
-  n <- normal( p$vertices[f[1],], p$vertices[f[2],], p$vertices[f[3],] )
-  mid <- apply(p$vertices[f,],2,mean)
+  n <- normal( p$coords[f[1],], p$coords[f[2],], p$coords[f[3],] )
+  mid <- apply(p$coords[f,],2,mean)
   return (vectorlength(mid+n) > vectorlength(mid-n))
 }
 
-# # Identifies connected faces in given polyhedron (i.e. polygons sharing an edge) and puts 
-# # the face numbers of distinct bodies into separate lists. Useful for color assigment.
-# findDistinctBodies <- function(p)
-# {
-#   bodies <- list()
-#   bodyIndex <- 1
-#   bodies[[bodyIndex]] <- c(1) # start with face 1
-#   repeat 
-#   {
-#     i <- 1 # index in list of faces in current body, keeps incrementing while new faces may be added at end of this list
-#     repeat
-#     {
-#       unassigned <- setdiff(1:length(p$faces), unlist(bodies))
-#       if (length(unassigned) == 0) break # done, all faces assigned to a body
-#       # find faces connect to the face at position i
-#       connectedfaces <- unassigned[sapply(unassigned, function(f) {return(length(intersect(p$faces[[f]], 
-#                                                                                            p$faces[[bodies[[bodyIndex]][i]]])) > 1)})]
-#       if (length(connectedfaces) > 0) {
-#         bodies[[bodyIndex]] <- c(bodies[[bodyIndex]], connectedfaces)
-#       }
-#       i <- i+1
-#       if (i > length(bodies[[bodyIndex]])) break # done with all faces in the current body
-#     }
-#     if (length(unassigned) == 0) break # done, all faces assigned to a body
-#     
-#     bodyIndex <- bodyIndex + 1
-#     bodies[[bodyIndex]] <- unassigned[1]
-#   }
-#   return(bodies)
-# }
-
-# Build up a face from existing vertices in given polygon, within constraints passed in as
+# Build up a face from existing coords in given polygon, within constraints passed in as
 # the number of edges/vertices of this face, number of faces per vertex and the length of
 # an edge. The face does not need to be regular but will have all edges of the same length.
 buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug = F)
 {
-  if (debug) cat("Face", aFace, fill=T)
+  if (debug) cat("Face candidate:", paste0("{",paste0(aFace, collapse = "-"),"}"), fill=T)
   
   # Bail out if face has 3 vertices and those already exist in one of the polygon's faces
   if (length(aFace) == 3 & length(p$faces) > 0) {
@@ -64,10 +34,10 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
     # Final check: if (first) 3 points of a face are in aFace then not good
     if (length(p$faces) > 0) {
       # calculate normal from the first three of the face points (the rest is guaranteed to be in the same plane)
-      normal <- normal(p$vertices[aFace[1],], p$vertices[aFace[2],], p$vertices[aFace[3],])
+      normal <- normal(p$coords[aFace[1],], p$coords[aFace[2],], p$coords[aFace[3],])
       
       for (f in p$faces) {
-        verticesInNewPlane <- deltaEquals(normal %*% apply(p$vertices[f,], 1, function(x) {return(x-unlist(p$vertices[aFace[1],]))}), 0)
+        verticesInNewPlane <- deltaEquals(normal %*% apply(p$coords[f,], 1, function(x) {return(x-unlist(p$coords[aFace[1],]))}), 0)
         if (sum(verticesInNewPlane) >= 3) {
           if (debug) {
             cat("Existing face", f, "has 3 or more points in same plane as new face", aFace, fill=T)
@@ -90,28 +60,29 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
   }
   
   # Check vertex not fully occupied
-  candidates <- setdiff(which( sapply(seq(nrow(p$vertices)), function(i) { sum(unlist(p$faces) == i)}) < vertexsize ), aFace)
+  candidates <- setdiff(which( sapply(seq(nrow(p$coords)), function(i) { sum(unlist(p$faces) == i)}) < vertexsize ), aFace)
   if (debug) cat("Free vertices:", candidates, fill = T)
   
   # Check vertex right distance to previous point
   if (length(candidates) > 0 & length(aFace) > 0) {
-    candidates <- candidates[which(deltaEquals(distance(p$vertices[aFace[length(aFace)],], p$vertices[candidates,]), edgelength))]  
+    candidates <- candidates[which(deltaEquals(distance(p$coords[aFace[length(aFace)],], p$coords[candidates,]), edgelength))]  
     if (debug) cat("Right distance to prev:", candidates, fill = T)
   }
   
   # Check last vertex right distance to first point
   if (length(candidates) > 0 & length(aFace) == (polygonsize-1)) {
-    candidates <- candidates[which(deltaEquals(distance(p$vertices[aFace[1],], p$vertices[candidates,]), edgelength))]  
+    candidates <- candidates[which(deltaEquals(distance(p$coords[aFace[1],], p$coords[candidates,]), edgelength))]  
     if (debug) cat("Right distance to first:", candidates, fill = T)
   }
   
   # Check if the 4th and further points are in the same plane as the first 3
   if (length(candidates) > 0 & length(aFace) >= 3) {
     # calculate normal from three of the face points
-    normal <- normal(p$vertices[aFace[1],], p$vertices[aFace[2],], p$vertices[aFace[3],])
+    normal <- normal(p$coords[aFace[1],], p$coords[aFace[2],], p$coords[aFace[3],])
     
-    # then the inner product of n with the vector of any of those to a given point is 0 when in the same plane
-    candidates <- candidates[which(deltaEquals(normal %*% apply(p$vertices[candidates,], 1, function(x) {return(x-unlist(p$vertices[aFace[1],]))}), 0))]
+    # then the inner product of the normal with the vector of face point 1 to the candidates is 0 when in the same plane
+    candidatevectors <- t(apply(matrix(p$coords[candidates,], ncol=3), 1, function(x) {return(x-p$coords[aFace[1],])}))
+    candidates <- candidates[which(deltaEquals(apply(candidatevectors, 1, function(x) {return(normal %*% x)}), 0))]
     if (debug) cat("In the same plane as the first three:", candidates, fill = T)
   }
   
@@ -126,22 +97,30 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
 
 # TODO consider building polygon from just symbol like {3,5}
 
-# Build a polygon given a set of vertices (full x, y, z coordinates), the two vertices
+# Build a polyhedron given a set of coords (full x, y, z coordinates), the two vertices
 # of an example edge (used to determine the global edge size of this polyhedron)
-buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(1,2), name = "", debug=F)
+buildRegularPoly <- function(coords, polygonsize, vertexsize, exampleEdge = c(1,2), name = "", debug=F)
 {
-  # Scale the vertices to unit length
-  vertices <- normalizedistances(vertices)
+  if (!is.matrix(coords)) coords <- as.matrix(coords)
+  
+  # Scale the coords to unit length
+  coords <- normalizedistances(coords)
+  
+  if (debug) {
+    spacing <- 0.1
+    spheres3d(coords[,1], coords[,2], coords[,3], color="green", radius = 0.02)
+    text3d((1+spacing)*coords[,1], (1+spacing)*coords[,2], (1+spacing)*coords[,3], text = seq(nrow(coords)), color="blue")
+  }
   
   # Determine global edge size from given example edge
-  edgelength <- distance(vertices[exampleEdge[1],], vertices[exampleEdge[2],])
+  edgelength <- distance(coords[exampleEdge[1],], coords[exampleEdge[2],])
   
   # Add new faces one by one until all vertices have the specified number of faces
-  poly <- list(vertices = vertices, faces = list(), name = name)
-  edges <- matrix(data = 0, nrow = nrow(vertices), ncol = nrow(vertices))
+  poly <- list(coords = coords, faces = list(), name = name)
+  edges <- matrix(data = 0, nrow = nrow(coords), ncol = nrow(coords))
   repeat {
-    # Check if there's any not fully occupied vertices
-    freeVertices <- which( sapply(seq(nrow(poly$vertices)), function(i) { sum(unlist(poly$faces) == i)}) < vertexsize )
+    # Check if there's any coordinates not having the desired number of faces connected
+    freeVertices <- which( sapply(seq(nrow(poly$coords)), function(i) { sum(unlist(poly$faces) == i)}) < vertexsize )
     if (length(freeVertices) == 0) {
       if (any(edges == 1)) {
         if (debug) print("Done but with gaps")  
@@ -190,15 +169,52 @@ buildRegularPoly <- function(vertices, polygonsize, vertexsize, exampleEdge = c(
   return(poly)
 }
 
+# Figures out the topology of given polyhedron. Returns a list with multiple
+# elements, depending on flags.
+#
+# $edges: list of list of
+#         faces = c(F1,F2) : the two neighbouring faces (index into p$faces), not in any order and one of them can be empty if there are gaps
+#         vertices = c(V1, V2) : the two vertices (index into $vertices), also not in order but neither can be empty
+# $vertices: list of list of
+#         faces = c(...) : ordered list of faces (index into p$faces) around this vertex
+#         edges = c(...) : ordered list of edges (index into $edges) around this vertex
+#         points = c(...) : ordered list of points (index into p$coords) around this vertex
+#         center = P : center of this vertex (index into p$coords) (vertices != coordinates, e.g. with mulitple bodies)
+# $bodies: list of
+#         c(...) : faces in this body (index into p$faces)
+
+topology <- function(p, edges=T, vertexFigures=T, bodies=T)
+{
+  
+}
+
 # Derives the topology of a polyhedron based on just a list of faces. Each face consists of a list
-# of references to vertices as everywhere else. The returned structure contains
+# of references to coords as everywhere else. The returned structure contains
 #
 # - a square matrix vexToRFace mapping vertex pairs to the index of the face on the right-hand side of it
 # - a square and symetrical matrix vexToEdge mapping vertex pairs to the number (index) of the edge connecting both
 # - an unordered list vexConnections with for every vertex of the polygon (NB in compounds there could be multiple of these for a vertex):
 #       - the index of the center vertex
 #       - the indices of the faces surrounding the vertex (in order)
-#       - the indices of the vertices connected to this vertex (in order)
+#       - the indices of the coords connected to this vertex (in order)
+
+# TODO make more robust
+# edge list vexToEdge[i,j] gives (newly created) edge number for vertex i to vertex j by following along all faces
+#           vexToEdge[j,i] = vexToEdge[i,j] 
+# face list vexToFace[i,j] gives the RHS face if face is oriented normal etc
+#           in case of collission a face can be turned upside down - previous face assignments to be corrected!
+#           but a face can only be turned once 
+# face orientation = array for all faces starts with NA then T if follows face orientation, F otherwise
+#
+# with that we know which faces are neighbouring - the symmetry axis of the VexToFace 
+# so this should solve the bodies problem immediately
+# gaps exist if there is no symmetry
+# there can also be orphaned vertices
+#
+# we also know which faces occur at any given vertex -->
+# build vexFigure by orienting the faces by ordering the row elements of vexToFace using the symmetry
+# vexFigure indices correspond to coordinate indices
+
 getTopology <- function(faces, debug=F)
 {
   if (!is.null(names(faces))) {
@@ -289,8 +305,8 @@ getTopology <- function(faces, debug=F)
       }
     }
     isUsedAsStartFace[startingFace] <- T
-
-  # for (startingFace in seq(length(faces))) 
+    
+    # for (startingFace in seq(length(faces))) 
     if (debug) cat("start face:", getFaceForDebug(startingFace), fill=T)
     
     # check which vex we already have with this face in it
@@ -328,7 +344,7 @@ getTopology <- function(faces, debug=F)
           # the other way from the start - becomes messy and what if there are multiple gaps
           break
         }
-
+        
         if (f == startingFace | f == 0) {
           # check if we don't have this already - not just checking the same center point but also
           # the set of faces as we could have multiple bodies just sharing a vertex but no faces
@@ -392,16 +408,16 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
 {
   topo <- getTopology(p$faces)
   
-  newVertexCoords <- as.data.table(t(sapply(p$faces, function(f) { return(apply(p$vertices[f,],2,mean))})))
+  newVertexCoords <- t(sapply(p$faces, function(f) { return(apply(p$coords[f,],2,mean))}))
   newFaces <- lapply(topo$vexConnections, function(c) {return(c$faces)})
   
   # scale so that mid of a new vertex is at same distance from origin as mid
   # of an old vertex - works at least for regulars, otherwise somewhat arbitrary
   if (scaling == "edge") {
-    scale <- vectorlength(apply(p$vertices[p$faces[[1]][1:2],],2,mean)) / 
+    scale <- vectorlength(apply(p$coords[p$faces[[1]][1:2],],2,mean)) / 
       vectorlength(apply(newVertexCoords[newFaces[[1]][1:2],],2,mean))
   } else if (scaling == "vertex") {
-    scale <- vectorlength(p$vertices[p$faces[[1]][1],])/
+    scale <- vectorlength(p$coords[p$faces[[1]][1],])/
       vectorlength(newVertexCoords[newFaces[[1]][1],])
   } else if (scaling == "none") {
     scale <- 1
@@ -409,7 +425,7 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
     stop(paste("Wrong scaling argument:", scaling))
   }
   
-  pDual <- list( vertices = newVertexCoords*scale, faces = newFaces, name = name)
+  pDual <- list( coords = newVertexCoords*scale, faces = newFaces, name = name)
   
   # TODO it is possible we end up with uneven faces e.g.
   # dual(archi(dodecahedron)) --> break the face up into triangles?
@@ -425,23 +441,23 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
   return(pDual)
 }
 
-# Create an derived polyhedron by truncating all vertices to the mid of the faces
+# Create an derived polyhedron by truncating all coords to the mid of the faces
 archi <- function(p, name=paste("archi", p$name), debug=F)
 {
   topo <- getTopology(p$faces)
   
   # new points are midpoints of all edges ; the index of each edge is obtained using lookup in the vexToEdge matrix
-  archiPoints <- as.data.table(normalizedistances(t(sapply(seq(max(topo$vexToEdge)), function(e) { 
+  archiPoints <- normalizedistances(t(sapply(seq(max(topo$vexToEdge)), function(e) { 
     w <- which(topo$vexToEdge==e & upper.tri(topo$vexToEdge)) # shall be one and only one
-    return(apply(p$vertices[c((w - 1) %/% nrow(topo$vexToEdge) + 1, 
-                              (w - 1) %% nrow(topo$vexToEdge) + 1),],2,mean))
-  }))))
+    return(apply(p$coords[c((w - 1) %/% nrow(topo$vexToEdge) + 1, 
+                            (w - 1) %% nrow(topo$vexToEdge) + 1),],2,mean))
+  })))
   # one set of faces comes from the vertices neighbouring each point
   archiFaces1 <- lapply(topo$vexConnections, function(vex) { return(topo$vexToEdge[vex$vex, vex$center])})
   # the other set comes from the faces, using midpoints of their edges
   archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(topo$vexToEdge[f[j], shiftrotate(f)[j]])})})
   
-  pArchi <- list(vertices = archiPoints, faces = c(archiFaces1, archiFaces2), name=name)
+  pArchi <- list(coords = archiPoints, faces = c(archiFaces1, archiFaces2), name=name)
   
   # make sure all faces are oriented consistently
   for (i in seq(length(pArchi$faces))) {
@@ -458,15 +474,15 @@ archi <- function(p, name=paste("archi", p$name), debug=F)
 # Combine two polyhedra into one
 compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",")), debug=F)
 {
-  # TODO unify vertices!!
+  # TODO unify coords!!
   # TODO finish
   
-  # start with giving the p2 vertices the identity reference
-  p2NewReference <- nrow(p1$vertices) + seq(nrow(p2$vertices)) 
+  # start with giving the p2 coords the identity reference
+  p2NewReference <- nrow(p1$coords) + seq(nrow(p2$coords)) 
   
-  # then see which ones are identical to p1 vertices and track that index
-  for (v1 in seq(nrow(p1$vertices))) { 
-    samePoints <- which(deltaEquals(distance(p1$vertices[v1,], p2$vertices[seq(nrow(p2$vertices)),]),0))
+  # then see which ones are identical to p1 coords and track that index
+  for (v1 in seq(nrow(p1$coords))) { 
+    samePoints <- which(deltaEquals(distance(p1$coords[v1,], p2$coords[seq(nrow(p2$coords)),]),0))
     if (length(samePoints) > 0) {
       p2NewReference[ samePoints ] <- v1  
     }
@@ -474,12 +490,12 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
   
   # TODO now relabel indices the faces of p2 using the mapping p2NewReference
   
-  return(list(vertices = rbind(p1$vertices, p2$vertices),
-              faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$vertices)) })),
+  return(list(coords = rbind(p1$coords, p2$coords),
+              faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$coords)) })),
               name = name))
 }
 
-# Create new polyhedron by chopping off the vertices replacing each by a new face
+# Create new polyhedron by chopping off the coords replacing each by a new face
 # TODO lin alg to find new points is not ok yet
 snub <- function(p, name = paste("snub", p$name), debug=F)
 {
@@ -491,13 +507,13 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
   for (v in topo$vexConnections) {
     # create new points close to vertex center C in direction of the connected points P
     # new point = C + alpha*(PC)
-    angles <- innerAngles(p$vertices[v$vex,], center=p$vertices[v$center,])
+    angles <- innerAngles(p$coords[v$vex,], center=p$coords[v$center,])
     # find alpha such that the sides of the newly created faces are equal
     alpha <- 0.5 - 0.5*(sin(angles/2)/(1+sin(angles/2))) # not trivial but easily derived
     
-    newPoints <- p$vertices[v$vex,]*alpha + (1-alpha)*data.table(x=rep(p$vertices$x[v$center], length(v$vex)), 
-                                                                 y=rep(p$vertices$y[v$center], length(v$vex)),
-                                                                 z=rep(p$vertices$z[v$center], length(v$vex)))
+    newPoints <- p$coords[v$vex,]*alpha + (1-alpha)*data.table(x=rep(p$coords[v$center,1], length(v$vex)), 
+                                                               y=rep(p$coords[v$center,2], length(v$vex)),
+                                                               z=rep(p$coords[v$center,3], length(v$vex)))
     newPoints$from <- v$center
     newPoints$to <- v$vex
     if (is.null(allPoints)) {
@@ -521,7 +537,7 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
     allFaces[[length(allFaces)+1]] <- snubbedFace
   }
   
-  pSnub <- list(vertices = allPoints[,1:3], faces = allFaces, name=name)
+  pSnub <- list(coords = allPoints[,1:3], faces = allFaces, name=name)
   
   # make sure all faces are oriented consistently
   for (i in seq(length(pSnub$faces))) {
@@ -559,14 +575,14 @@ description <- function(p, debug=F)
   
   getFaceDescription <- function(f, addlengths=debug, addangles=debug)
   {
-    sidelengths <- round(distance(p$vertices[f,], p$vertices[shiftrotate(f),]),6)
+    sidelengths <- round(distance(p$coords[f,], p$coords[shiftrotate(f),]),6)
     baseDescr <- as.character(length(f))
     if (addlengths) {
       baseDescr <- paste0(baseDescr, " [length: ", combineDescriptions(sidelengths), "]")
     }
     
     # TODO check for regularity of angles and face lengths 
-    angles <- innerAngles(p$vertices[f,])
+    angles <- innerAngles(p$coords[f,])
     if (deltaEquals(sum(angles), 2*pi)) {
       # simple polygon
       fDescr <- baseDescr
@@ -616,20 +632,26 @@ description <- function(p, debug=F)
 # Platonic solids
 # all coords taken from https://en.wikipedia.org/wiki/Platonic_solid
 
-tetrahedron <- buildRegularPoly(vertices = rbind(data.frame(x=1, y=1, z=1), data.frame(x=1, y=-1, z=-1), data.frame(x=-1, y=1, z=-1), data.frame(x=-1, y=-1, z=1)),
+tetrahedron <- buildRegularPoly(coords = rbind(data.table(x=1, y=1, z=1), data.table(x=1, y=-1, z=-1), data.table(x=-1, y=1, z=-1), data.table(x=-1, y=-1, z=1)),
                                 polygonsize = 3,
                                 vertexsize = 3,
                                 name = "Tetrahedron")
 
-octahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
+# constructing the cube directly will help as this is the first one with faces with > 3 sides
+cube <- buildRegularPoly(coords = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
+                         polygonsize = 4,
+                         vertexsize = 3,
+                         name = "Cube")
+
+octahedron <- buildRegularPoly(coords = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), expand.grid(x = 0, y = c(-1,1), z = 0), expand.grid(x = 0, y = 0, z = c(-1,1))),
                                polygonsize = 3,
                                vertexsize = 4,
                                exampleEdge = c(1,3),
                                name = "Octahedron")
 
-icosahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = 0, y = c(-1,1), z = c(-phi, phi)), 
-                                                 expand.grid(x = c(-1,1), y = c(-phi, phi), z = 0), 
-                                                 expand.grid(x = c(-phi, phi), y = 0, z = c(-1, 1))),
+icosahedron <- buildRegularPoly(coords = rbind(expand.grid(x = 0, y = c(-1,1), z = c(-phi, phi)), 
+                                               expand.grid(x = c(-1,1), y = c(-phi, phi), z = 0), 
+                                               expand.grid(x = c(-phi, phi), y = 0, z = c(-1, 1))),
                                 polygonsize = 3,
                                 vertexsize = 5,
                                 name = "Icosahedron",
@@ -646,7 +668,7 @@ icosahedron <- buildRegularPoly(vertices = rbind(expand.grid(x = 0, y = c(-1,1),
 
 # p <- octahedron #smallStellatedDodecahedron
 # f <- p$faces[[1]]
-# innerAngles(p$vertices[f,])*360/2/pi
+# innerAngles(p$coords[f,])*360/2/pi
 
 # to test the above
 # p1<-smallStellatedDodecahedron
