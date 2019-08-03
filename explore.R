@@ -39,8 +39,8 @@ drawPoly(Duals, start = c(0, 0, -3), delta = c(6, 0, 0), label = "Duals of Regul
 combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(compose(p, dual(p))) })
 drawPoly(combis, start = c(0, 0, -6), delta = c(6, 0, 0), label = "Combined")
 
-archis <- lapply(Regulars, archi)
-drawPoly(archis, start = c(0, 0, -9), delta = c(6, 0, 0), label = "Rhombic")
+rhombics <- lapply(Regulars, rhombic)
+drawPoly(rhombics, start = c(0, 0, -9), delta = c(6, 0, 0), label = "Rhombic")
 
 # cubedirect <- buildRegularPoly(coords = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
 #                                polygonsize = 4,
@@ -60,13 +60,13 @@ compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
 # so two triangles really form a {6/2} together
 dodecahedronStellations <- list(compound5tetrahedra,
                                 dual(compound5tetrahedra, name = "Dual 5 Tetrahedra"),
-                                archi(compound5tetrahedra, name = "Rhombic of 5 Tetrahedra"),
+                                rhombic(compound5tetrahedra, name = "Rhombic of 5 Tetrahedra"),
                                 compose(compound5tetrahedra, dual(compound5tetrahedra), name = "10 Tetrahedra"))
 
 drawPoly(dodecahedronStellations, start = c(3*4, 6, 0), delta = c(0, 0, -5), label = "Stellations Dodecahedron")
 
 clear3d()
-drawSinglePoly(dual(archi(octahedron)))
+drawSinglePoly(dual(rhombic(octahedron)))
 
 # below does not look entirely OK, there are clashing faces but
 # this could be due to the way {5/2} etc are trianglulized currently
@@ -91,13 +91,13 @@ compound5Cubes <- buildRegularPoly(dodecahedron$coords,
                                     vertexsize = 6,
                                     exampleEdge = c(1, 8),
                                    name = "5 Cubes")
-moreDodecahedronStellations <- list(compound5Cubes, dual(compound5Cubes), archi(compound5Cubes))
+moreDodecahedronStellations <- list(compound5Cubes, dual(compound5Cubes), rhombic(compound5Cubes))
 drawPoly(moreDodecahedronStellations, start = c(3*5, 6, 0), delta = c(0, 0, -5))
 # this one we saw before: dual(compound5Cubes)
 
 clear3d()
 # looks nice but faces overlap?
-#drawPoly(archi(compound10Cubes), x = 3, y = -3, label="many archis") ### 5??
+#drawPoly(rhombic(compound10Cubes), x = 3, y = -3, label="many rhombics") ### 5??
 
 # saving to files:
 # snapshot3d( "gallery.png", fmt = "png", top = TRUE )

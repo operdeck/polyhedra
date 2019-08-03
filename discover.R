@@ -48,25 +48,8 @@ discover <- function(p, debug=F)
 }
 
 # if (debug) print("All done!")
-#discover(archi(dodecahedron), debug=F)
+#discover(rhombic(dodecahedron), debug=F)
 
 stop("issues below:")
 
 discover(dodecahedron, debug=T) # problems
-poly <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4))
-clear3d()
-drawSinglePoly(poly, debug = T) # this shows the error drawing {5/2} # but now goes into a loop?
-topo <- getTopology(poly$faces, debug=T) # this errors out on edge 4-1 / into a loop
-
-# face is "below" origin
-faces <- poly$faces
-debug <- T
-simplified <- list(coords=poly$coords, faces=list(poly$faces[[1]], poly$faces[[2]]), name="debug")
-print(simplified$faces[[1]])
-print(simplified$faces[[2]])
-drawSinglePoly(simplified, debug = T) # shows drawing error and orientation issue when using [[1]],[[2]]
-getTopology(simplified$faces) # loops
-
-# with a fix we get into a loop in 
-getTopology(simplified$faces, debug=T)
-

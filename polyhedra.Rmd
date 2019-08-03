@@ -118,7 +118,7 @@ snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
 
 ![Combination of regular polyhedra with their duals](snapshots/regulars-with-duals.png)
 
-## Archi transformation
+## Rhombic transformation
 
 ### Rhombic Archimedean solids
 
@@ -126,7 +126,7 @@ The first of the transformations to turn regular solids into Archimedean solids 
 
 ```{r}
 # Here as well, since applying to regular solids only need to do half of them
-rhombicarchimedeans <- lapply(Regulars[seq(length(Regulars))%%2==1], archi)
+rhombicarchimedeans <- lapply(Regulars[seq(length(Regulars))%%2==1], rhombic)
 ```
 
 ```{r, include=F}
@@ -163,7 +163,7 @@ snapshot3d("snapshots/compound5tetrahedra.png", fmt = "png", top = TRUE )
 The "rhombic" transformation of this turns it into the compound of 5 octahedra.
 
 ```{r}
-compound5octahedra <- archi(compound5tetrahedra, name = "5 Octahedra")
+compound5octahedra <- rhombic(compound5tetrahedra, name = "5 Octahedra")
 ```
 
 ```{r, include=F}
@@ -206,7 +206,7 @@ compound5Cubes <- buildRegularPoly(dodecahedron$coords,
                                    name = "5 Cubes")
 moreDodecahedronStellations <- list(compound5Cubes, 
                                     dual(compound5Cubes), 
-                                    archi(compound5Cubes))
+                                    rhombic(compound5Cubes))
 ```
 
 ```{r, include=F}
