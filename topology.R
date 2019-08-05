@@ -109,6 +109,17 @@ getTopology <- function(p, debug=F)
   }
   
   # TODO two faces are in the same body if they share an edge
+  isEdgeProcessed <- rep(F, nrow(edgeToFaces))
+  addConnectedFaces <- function (face)
+  {
+    if (face==0) return( c() )
+    if (all(isEdgeProcessed)) return ( c() )
+    # which edges contain face
+    # add all the other faces of those edges and mark as isProcessed
+    # for all those other faces, recurse
+  }
+  p$bodies <- list()
+  
   
   # TODO find vertex figures by going rowwise through coordPairToFaces. Every row is one or
   # more vertex figures. Order by connecting the faces found in one row that share 2 coords.
