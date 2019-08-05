@@ -56,7 +56,7 @@ getTopology <- function(p, debug=F)
   faces <- p$faces # possibility to cache the topology or parts of it
   
   n_vertices <- max(sapply(faces, max))
-  foundAnyGaps <- F
+  foundAnyGaps <- F # TODO derive from face matrix below (a-symmetries)
   
   getFaceForDebug <- function(faceidx)
   {
@@ -108,17 +108,31 @@ getTopology <- function(p, debug=F)
     }
   }
   
-  # TODO two faces are in the same body if they share an edge
-  isEdgeProcessed <- rep(F, nrow(edgeToFaces))
-  addConnectedFaces <- function (face)
+  # Finding bodies using above structure. Two faces are in the same body if they share an edge.
+  addConnectedFaces <- function (face, edges, currbody = c())
   {
-    if (face==0) return( c() )
-    if (all(isEdgeProcessed)) return ( c() )
-    # which edges contain face
-    # add all the other faces of those edges and mark as isProcessed
-    # for all those other faces, recurse
+    if (face==0) return( c() ) # not a valid face
+    if (face %in% currbody) return( c() ) # already in the current body
+    b <- c(face)
+    nextEdges <- which(edgeToFaces[edges,1] == face | edgeToFaces[edges,2] == face)
+    if (length(nextEdges) == 0) return(b)
+    for (nextEdge in edges[nextEdges]) {
+      b <- c(b, addConnectedFaces(edgeToFaces[nextEdge,1], setdiff(edges, edges[nextEdges]), b))
+      b <- c(b, addConnectedFaces(edgeToFaces[nextEdge,2], setdiff(edges, edges[nextEdges]), b))
+    }
+    return(b)
   }
+  
   p$bodies <- list()
+  repeat {
+    remainingEdges <- which(apply(edgeToFaces, 1, function(e2f) {!(e2f[1] %in% unlist(p$bodies)) & !(e2f[2] %in% unlist(p$bodies))}))
+    if (length(remainingEdges) == 0) break
+    startEdge <- remainingEdges[1]
+    currentBody <- unique(c(addConnectedFaces(edgeToFaces[startEdge,1], setdiff(remainingEdges, startEdge)), 
+                            addConnectedFaces(edgeToFaces[startEdge,2], setdiff(remainingEdges, startEdge))))
+    p$bodies[[1+length(p$bodies)]] <- currentBody
+    print(currentBody)
+  }
   
   
   # TODO find vertex figures by going rowwise through coordPairToFaces. Every row is one or
