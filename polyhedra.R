@@ -424,6 +424,8 @@ icosahedron <- buildRegularPoly(coords = rbind(expand.grid(x = 0, y = c(-1,1), z
                                 debug = F)
 
 
+dodecahedron <- dual(icosahedron, name = "Dodecahedron")
+
 # description(octahedron)
 # description(cube)
 # description(smallStellatedDodecahedron)

@@ -248,7 +248,7 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
 drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debug=F)
 {
   if (!is.null(names(p))) { # not testing whether there is a name, testing whether this is a list with poly's or not
-    drawSinglePoly(p, start[1], start[2], start[3], p$name, debug)
+    drawSinglePoly(p, start[1], start[2], start[3], ifelse(is.null(p$name), "", p$name), debug)
   } else {
     for (i in seq(length(p))) {
       drawSinglePoly(p[[i]], start[1] + (i-1)*delta[1], start[2] + (i-1)*delta[2], start[3] + (i-1)*delta[3], p[[i]]$name, debug)  

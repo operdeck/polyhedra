@@ -123,109 +123,153 @@ getTopology <- function(p, debug=F)
     return(b)
   }
   
-  p$bodies <- list()
+  bodies <- list()
   repeat {
-    remainingEdges <- which(apply(edgeToFaces, 1, function(e2f) {!(e2f[1] %in% unlist(p$bodies)) & !(e2f[2] %in% unlist(p$bodies))}))
+    remainingEdges <- which(apply(edgeToFaces, 1, function(e2f) {(e2f[1] != 0 & !(e2f[1] %in% unlist(bodies))) & (e2f[2] != 0 & !(e2f[2] %in% unlist(bodies)))}))
     if (length(remainingEdges) == 0) break
     startEdge <- remainingEdges[1]
     currentBody <- unique(c(addConnectedFaces(edgeToFaces[startEdge,1], setdiff(remainingEdges, startEdge)), 
                             addConnectedFaces(edgeToFaces[startEdge,2], setdiff(remainingEdges, startEdge))))
-    p$bodies[[1+length(p$bodies)]] <- currentBody
-    print(currentBody)
+    bodies[[1+length(bodies)]] <- currentBody
   }
   
-  
-  # TODO find vertex figures by going rowwise through coordPairToFaces. Every row is one or
-  # more vertex figures. Order by connecting the faces found in one row that share 2 coords.
-  
-  # Knowing which edges connect to which faces we can now build up oriented lists of 
-  # faces and eges around any vertex
-  
-  isConnectedToPreviousStartFace <- rep(F, length(faces))
-  isUsedAsStartFace <- rep(F, length(faces))
-  vexConnections <- list()
-  startingFace <- NULL
-  repeat {
-    if (is.null(startingFace)) {
-      # start just somewhere
-      startingFace <- 1
-    } else {
-      if (any(isConnectedToPreviousStartFace & !isUsedAsStartFace)) {
-        # prefer to continue on a face connected to any of the faces previously used
-        startingFace <- which(isConnectedToPreviousStartFace & !isUsedAsStartFace)[1]
-      } else {
-        # otherwise there may be a disjunct set of faces (multiple bodies) so start there
-        if (any(!isUsedAsStartFace)) {
-          startingFace <- which(!isUsedAsStartFace)[1]
-        } else {
-          # all faces used, we're done
-          break;
-        }
+  # Vertex figures: start with a raw list of all faces connected to a coord, then process each of these
+  # to set order (via edges) and split (if there are multiple solids sharing a coord)
+  vexFigures <- list()
+  rawVertexFigures <- lapply(seq(nrow(coordPairToFaces)), function(i) {return(setdiff(unique(c(coordPairToFaces[i,],
+                                                                                               coordPairToFaces[,i])),0))})
+  for (vi in seq(length(rawVertexFigures))) {
+    # all the edges that connect pairs of the faces in this raw vertex
+    v <- rawVertexFigures[[vi]]
+    if (length(v) == 0) break # in case of gaps
+    # TODO more restrictive, use coords to vex
+    remainingRawEdges <- which(sapply(seq(nrow(edgeToFaces)), function(i) {return((edgeToFaces[i,1] %in% c(0,v)) & (edgeToFaces[i,2] %in% c(0, v)))}))
+    remainingFaces <- v
+    repeat {
+      currentFace <- remainingFaces[1] # start
+      vertexFaceFig <- currentFace
+      vertexVexFig <- c() # TODO = vertexCoordFig
+      repeat {
+        # the edges neighbouring current face
+        nbredges <- remainingRawEdges[edgeToFaces[remainingRawEdges,1]==currentFace | edgeToFaces[remainingRawEdges,2]==currentFace]
+        if (length(nbredges) == 0) break # no neighbour edges remaining, must be done with this vertex
+        nextFace <- ifelse(edgeToFaces[nbredges[1],1] == currentFace, edgeToFaces[nbredges[1],2], edgeToFaces[nbredges[1],1])
+        vertexVexFig <- c(vertexVexFig, which(coordPairToEdge[vi,]==nbredges[1])) # other coord connected by edge
+        remainingRawEdges <- setdiff(remainingRawEdges, nbredges[1])
+        if (length(remainingRawEdges) == 0) break # really done, breaks second repeat also
+        if (nextFace == remainingFaces[1]) break # back to start face
+        vertexFaceFig <- c(vertexFaceFig, nextFace)
+        currentFace <- nextFace
       }
-    }
-    isUsedAsStartFace[startingFace] <- T
-    
-    # for (startingFace in seq(length(faces))) 
-    if (debug) cat("start face:", getFaceForDebug(startingFace), fill=T)
-    
-    # check which vex we already have with this face in it
-    coveredPoints <- c()
-    if (length(vexConnections) > 0) {
-      vexCoveringThisStartingFace <- which(sapply(vexConnections, function(con) { return(startingFace %in% con$faces)}))
-      if (length(vexCoveringThisStartingFace) > 0) {
-        coveredPoints <- sapply(vexCoveringThisStartingFace, function(i) {return(vexConnections[[i]]$center)})
-        if (debug) cat("skipping already covered points for this face:", paste0(coveredPoints, collapse=";"), fill=T)
-      }
-    }
-    
-    for (centerPoint in setdiff(faces[[startingFace]], coveredPoints))
-    {
-      if (debug) cat("start building vertex around", centerPoint, fill=T)
-      vexToFaces <- c()
-      vexToVertex <- c()
-      f <- startingFace
+      #print(vertexFaceFig)
+      #print(vertexVexFig)
+      vexFigures[[1+length(vexFigures)]] <- list(center = vi,
+                                                         faces = vertexFaceFig,
+                                                         vex = vertexVexFig)
       
-      repeat
-      {
-        vexToFaces <- c(vexToFaces, f) # keep track of an oriented list of connected faces around centerPoint
-        isConnectedToPreviousStartFace[f] <- T
-        if (debug) cat("center",centerPoint, "face",getFaceForDebug(f), fill=T)
-        i <- which(faces[[f]] == centerPoint) # index in face f of centerPoint
-        prevPoint <- shiftrotate(faces[[f]],-1)[i] # point on an edge of face f that connects to centerPoint
-        vexToVertex <- c(vexToVertex, prevPoint) # keep track of an oriented list of connected points around centerPoint
-        
-        nextPoint <- shiftrotate(faces[[f]])[i] # find next face f that connects at edge nextPoint - centerPoint
-        f <- coordPairToFaces[ nextPoint, centerPoint ]
-        if (f == 0) {
-          foundAnyGaps <- T
-          cat("WARNING: there's a gap, no face to the right of the edge from", centerPoint, "to", nextPoint, fill=T)
-          # don't add this vex although in theory we could try adding vertices with gaps by first trying going
-          # the other way from the start - becomes messy and what if there are multiple gaps
-          break
-        }
-        
-        if (f == startingFace | f == 0) {
-          # check if we don't have this already - not just checking the same center point but also
-          # the set of faces as we could have multiple bodies just sharing a vertex but no faces
-          if (!any(sapply(vexConnections, function(con) { return( centerPoint == con$center &
-                                                                  setequal(vexToFaces, con$faces) &
-                                                                  setequal(vexToVertex, con$vex))})))
-          {
-            if (debug) cat("adding vex center",centerPoint,"faces:",paste(paste0("F",vexToFaces), collapse = ";"),"vex:",paste(vexToVertex, collapse=";"), fill=T)
-            vexConnections[[1+length(vexConnections)]] <- list(center = centerPoint,
-                                                               faces = vexToFaces,
-                                                               vex = vexToVertex)
-          } else {
-            # not sure this can even happen with the more careful choice of starting vertices in place now
-            if (debug) cat("skipping adding vex center",centerPoint,"faces:",paste(paste0("F",vexToFaces), collapse = ";"),"vex:",paste(vexToVertex, collapse=";"), fill=T)
-          }
-          break # next vertex
-        }
-      }    
+      remainingFaces <- setdiff(remainingFaces, vertexFaceFig)
+      if (length(remainingFaces) == 0) break
     }
   }
   
-  return (list(coordPairToEdge=coordPairToEdge, coordPairToFaces=coordPairToFaces, vexConnections=vexConnections, hasGaps=foundAnyGaps))
+
+
+  # # TODO find vertex figures by going rowwise through coordPairToFaces. Every row is one or
+  # # more vertex figures. Order by connecting the faces found in one row that share 2 coords.
+  # 
+  # # Knowing which edges connect to which faces we can now build up oriented lists of
+  # # faces and eges around any vertex
+  # 
+  # isConnectedToPreviousStartFace <- rep(F, length(faces))
+  # isUsedAsStartFace <- rep(F, length(faces))
+  # vexConnections <- list()
+  # startingFace <- NULL
+  # repeat {
+  #   if (is.null(startingFace)) {
+  #     # start just somewhere
+  #     startingFace <- 1
+  #   } else {
+  #     if (any(isConnectedToPreviousStartFace & !isUsedAsStartFace)) {
+  #       # prefer to continue on a face connected to any of the faces previously used
+  #       startingFace <- which(isConnectedToPreviousStartFace & !isUsedAsStartFace)[1]
+  #     } else {
+  #       # otherwise there may be a disjunct set of faces (multiple bodies) so start there
+  #       if (any(!isUsedAsStartFace)) {
+  #         startingFace <- which(!isUsedAsStartFace)[1]
+  #       } else {
+  #         # all faces used, we're done
+  #         break;
+  #       }
+  #     }
+  #   }
+  #   isUsedAsStartFace[startingFace] <- T
+  # 
+  #   # for (startingFace in seq(length(faces)))
+  #   if (debug) cat("start face:", getFaceForDebug(startingFace), fill=T)
+  # 
+  #   # check which vex we already have with this face in it
+  #   coveredPoints <- c()
+  #   if (length(vexConnections) > 0) {
+  #     vexCoveringThisStartingFace <- which(sapply(vexConnections, function(con) { return(startingFace %in% con$faces)}))
+  #     if (length(vexCoveringThisStartingFace) > 0) {
+  #       coveredPoints <- sapply(vexCoveringThisStartingFace, function(i) {return(vexConnections[[i]]$center)})
+  #       if (debug) cat("skipping already covered points for this face:", paste0(coveredPoints, collapse=";"), fill=T)
+  #     }
+  #   }
+  # 
+  #   for (centerPoint in setdiff(faces[[startingFace]], coveredPoints))
+  #   {
+  #     if (debug) cat("start building vertex around", centerPoint, fill=T)
+  #     vexToFaces <- c()
+  #     vexToVertex <- c()
+  #     f <- startingFace
+  # 
+  #     repeat
+  #     {
+  #       vexToFaces <- c(vexToFaces, f) # keep track of an oriented list of connected faces around centerPoint
+  #       isConnectedToPreviousStartFace[f] <- T
+  #       if (debug) cat("center",centerPoint, "face",getFaceForDebug(f), fill=T)
+  #       i <- which(faces[[f]] == centerPoint) # index in face f of centerPoint
+  #       prevPoint <- shiftrotate(faces[[f]],-1)[i] # point on an edge of face f that connects to centerPoint
+  #       vexToVertex <- c(vexToVertex, prevPoint) # keep track of an oriented list of connected points around centerPoint
+  # 
+  #       nextPoint <- shiftrotate(faces[[f]])[i] # find next face f that connects at edge nextPoint - centerPoint
+  #       f <- coordPairToFaces[ nextPoint, centerPoint ]
+  #       if (f == 0) {
+  #         foundAnyGaps <- T
+  #         cat("WARNING: there's a gap, no face to the right of the edge from", centerPoint, "to", nextPoint, fill=T)
+  #         # don't add this vex although in theory we could try adding vertices with gaps by first trying going
+  #         # the other way from the start - becomes messy and what if there are multiple gaps
+  #         break
+  #       }
+  # 
+  #       if (f == startingFace | f == 0) {
+  #         # check if we don't have this already - not just checking the same center point but also
+  #         # the set of faces as we could have multiple bodies just sharing a vertex but no faces
+  #         if (!any(sapply(vexConnections, function(con) { return( centerPoint == con$center &
+  #                                                                 setequal(vexToFaces, con$faces) &
+  #                                                                 setequal(vexToVertex, con$vex))})))
+  #         {
+  #           if (debug) cat("adding vex center",centerPoint,"faces:",paste(paste0("F",vexToFaces), collapse = ";"),"vex:",paste(vexToVertex, collapse=";"), fill=T)
+  #           vexConnections[[1+length(vexConnections)]] <- list(center = centerPoint,
+  #                                                              faces = vexToFaces,
+  #                                                              vex = vexToVertex)
+  #         } else {
+  #           # not sure this can even happen with the more careful choice of starting vertices in place now
+  #           if (debug) cat("skipping adding vex center",centerPoint,"faces:",paste(paste0("F",vexToFaces), collapse = ";"),"vex:",paste(vexToVertex, collapse=";"), fill=T)
+  #         }
+  #         break # next vertex
+  #       }
+  #     }
+  #   }
+  # }
+  
+  return (list(coordPairToEdge=coordPairToEdge, 
+               coordPairToFaces=coordPairToFaces, 
+               #vexConnections=vexConnections, 
+               vexConnections=vexFigures,
+               bodies=bodies,
+               hasGaps=foundAnyGaps))
 }
 
 # Return list of list of distinct bodies in p. List contains the face indices.
@@ -263,6 +307,30 @@ findDistinctBodies <- function(p, topo = getTopology(p), debug=F)
   return(bodies)
 }
 
+testTopology <- function()
+{
+  t <- getTopology(cube)
+  t <- getTopology(compose(cube, dual(cube))) # two bodies
+  
+  # two strange pyramids sharing a coord
+  coords <- as.matrix(rbind(data.table(x=cos(2*pi*(0:3)/4), y=sin(2*pi*(0:3)/4), z=0),
+                            data.table(x=cos(2*pi*(1/8+(0:3)/4)), y=sin(2*pi*(1/8+(0:3)/4)), z=0),
+                            data.table(x=0,y=0,z=1)))
+  strangedualpyramid <- list(coords=coords, faces=list(c(1:4), c(5:8), 
+                                                       c(1,2,9), c(2,3,9), c(3,4,9), c(4,1,9),
+                                                       c(5,6,9), c(6,7,9), c(7,8,9), c(8,5,9)))
+  t <- getTopology(strangedualpyramid)
+  drawPoly(strangedualpyramid)
+  
+  # todo similar with gaps
+  
+  poly <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4))
+  drawSinglePoly(poly)
+  
+  simplified <- list(coords=poly$coords, faces=list(poly$faces[[1]], poly$faces[[2]]), name="debug")
+  t <- getTopology(simplified) # errors
+  drawSinglePoly(simplified, debug=T)
+}
 # poly <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4))
 # clear3d()
 # drawSinglePoly(poly, debug = T) # this shows the error drawing {5/2} # but now goes into a loop?
