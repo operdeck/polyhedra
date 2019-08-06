@@ -175,7 +175,7 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
   topo <- getTopology(p)
   
   newVertexCoords <- t(sapply(p$faces, function(f) { return(apply(p$coords[f,],2,mean))}))
-  newFaces <- lapply(topo$vexConnections, function(c) {return(c$faces)})
+  newFaces <- lapply(topo$vertexFigures, function(c) {return(c$faces)})
   
   # scale so that mid of a new vertex is at same distance from origin as mid
   # of an old vertex - works at least for regulars, otherwise somewhat arbitrary
@@ -219,7 +219,7 @@ rhombic <- function(p, name=paste("rhombic", p$name), debug=F)
                             (w - 1) %% nrow(topo$coordPairToEdge) + 1),],2,mean))
   })))
   # one set of faces comes from the vertices neighbouring each point
-  archiFaces1 <- lapply(topo$vexConnections, function(vex) { return(topo$coordPairToEdge[vex$vex, vex$center])})
+  archiFaces1 <- lapply(topo$vertexFigures, function(vex) { return(topo$coordPairToEdge[vex$vex, vex$center])})
   # the other set comes from the faces, using midpoints of their edges
   archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(topo$coordPairToEdge[f[j], shiftrotate(f)[j]])})})
   
@@ -270,7 +270,7 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
   # every vertex becomes a new face with all new points
   allPoints <- NULL
   allFaces <- list()
-  for (v in topo$vexConnections) {
+  for (v in topo$vertexFigures) {
     # create new points close to vertex center C in direction of the connected points P
     # new point = C + alpha*(PC)
     angles <- innerAngles(p$coords[v$vex,], center=p$coords[v$center,])
@@ -384,11 +384,10 @@ description <- function(p, debug=F)
   }
   
   topo <- getTopology(p)  
-  bodies <- findDistinctBodies(p, topo)
-  
-  bodyDescriptions <- lapply(bodies, function(b) {
+
+  bodyDescriptions <- lapply(topo$bodies, function(b) {
     # subselect vertices that have faces in current body
-    getBodyDescription(topo$vexConnections[sapply(topo$vexConnections, function(t) {return(length(intersect(t$faces, b)) > 0 )})])
+    getBodyDescription(topo$vertexFigures[sapply(topo$vertexFigures, function(t) {return(length(intersect(t$faces, b)) > 0 )})])
   })
   polyDescription <- combineDescriptions(bodyDescriptions, paste0("X", length(bodyDescriptions)))
   

@@ -218,7 +218,8 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
   }
   if (length(p$faces) > 0) { 
     if (!debug) {
-      bodies <- findDistinctBodies(p) # this call is too heavy when in debug mode and may not work
+      topo <- getTopology(p)
+      bodies <- topo$bodies # TODO when done with refactor should be possible also in debug
       if (length(bodies) > 1) {
         bodyColors <- rainbow(length(bodies))
       }

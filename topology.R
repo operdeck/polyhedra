@@ -2,54 +2,17 @@ library(data.table)
 
 # Things that do not depend on coordinates
 
-
-# Figures out the topology of given polyhedron. Returns a list with multiple
-# elements, depending on flags.
-#
-# $edges: list of list of
-#         faces = c(F1,F2) : the two neighbouring faces (index into p$faces), not in any order and one of them can be empty if there are gaps
-#         vertices = c(V1, V2) : the two vertices (index into $vertices), also not in order but neither can be empty
-# $vertices: list of list of
-#         faces = c(...) : ordered list of faces (index into p$faces) around this vertex
-#         edges = c(...) : ordered list of edges (index into $edges) around this vertex
-#         points = c(...) : ordered list of points (index into p$coords) around this vertex
-#         center = P : center of this vertex (index into p$coords) (vertices != coordinates, e.g. with mulitple bodies)
-# $bodies: list of
-#         c(...) : faces in this body (index into p$faces)
-
-topology <- function(p, edges=T, vertexFigures=T, bodies=T)
-{
-  
-}
-
 # Derives the topology of a polyhedron based on just a list of faces. Each face consists of a list
 # of references to coords as everywhere else. The returned structure contains
 #
-# - a square matrix coordPairToFaces mapping vertex pairs to the index of the face on the right-hand side of it
-# - a square and symetrical matrix coordPairToEdge mapping vertex pairs to the number (index) of the edge connecting both
-# - an unordered list vexConnections with for every vertex of the polygon (NB in compounds there could be multiple of these for a vertex):
-#       - the index of the center vertex
+# - a square matrix coordPairToFaces mapping point (coordinate) pairs to the index of the faces next to it - no order implied
+# - a square and symetrical matrix coordPairToEdge mapping point (coordinate) pairs to the number (index) of the edge connecting both
+# - a matrix edgeToFaces with the two (or less in case of gaps) faces connected to an edge
+# - a list bodies with each element a distinct set of faces belonging to a seperate body
+# - an unordered list vertexFigures with for every vertex of the polygon (NB in compounds there could be multiple of these per point):
+#       - the coordinate index of the center point
 #       - the indices of the faces surrounding the vertex (in order)
 #       - the indices of the coords connected to this vertex (in order)
-
-# TODO make more robust
-# edge list coordPairToEdge[i,j] gives (newly created) edge number for vertex i to vertex j by following along all faces
-#           coordPairToEdge[j,i] = coordPairToEdge[i,j] 
-# face list vexToFace[i,j] gives the RHS face if face is oriented normal etc
-#           in case of collission a face can be turned upside down - previous face assignments to be corrected!
-#           but a face can only be turned once 
-# face orientation = array for all faces starts with NA then T if follows face orientation, F otherwise
-#
-# with that we know which faces are neighbouring - the symmetry axis of the VexToFace 
-# so this should solve the bodies problem immediately
-# gaps exist if there is no symmetry
-# there can also be orphaned vertices
-#
-# we also know which faces occur at any given vertex -->
-# build vexFigure by orienting the faces by ordering the row elements of vexToFace using the symmetry
-# vexFigure indices correspond to coordinate indices
-
-# TODO make structures part of p, not a seperate structure
 
 getTopology <- function(p, debug=F)
 {
@@ -66,11 +29,8 @@ getTopology <- function(p, debug=F)
     return (paste(paste0("F",faceidx,":"),paste(faces[[faceidx]],collapse=";")))
   }
   
-  # Build a list of all edges by going round all faces, storing
-  # the edge index in a 2D matrix indexed by vertex indices. Not
-  # currently keeping a list of edges->faces directly but could be
-  # done trivially if needed.
-  
+  # Map pairs of coordinates to face and edge indices by going round all faces
+
   coordPairToEdge <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
   coordPairToFaces <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
   for (f in seq(length(faces))) {
@@ -96,7 +56,8 @@ getTopology <- function(p, debug=F)
     }
   }
   
-  # Build edgeToFaces from those two matrices. coordPairToEdge[n, 1:2] gives the two faces next to n.
+  # Build edgeToFaces from those two matrices. coordPairToEdge[n, 1:2] gives the two faces next to n
+  
   edgeToFaces <- matrix(nrow=max(coordPairToEdge), ncol=2, data=0)
   for (i in seq(nrow(coordPairToEdge))) {
     for (j in seq(ncol(coordPairToEdge))) {
@@ -109,6 +70,7 @@ getTopology <- function(p, debug=F)
   }
   
   # Finding bodies using above structure. Two faces are in the same body if they share an edge.
+  
   addConnectedFaces <- function (face, edges, currbody = c())
   {
     if (face==0) return( c() ) # not a valid face
@@ -135,6 +97,7 @@ getTopology <- function(p, debug=F)
   
   # Vertex figures: start with a raw list of all faces connected to a coord, then process each of these
   # to set order (via edges) and split (if there are multiple solids sharing a coord)
+  # TODO make more robust against gaps 
   vexFigures <- list()
   rawVertexFigures <- lapply(seq(nrow(coordPairToFaces)), function(i) {return(setdiff(unique(c(coordPairToFaces[i,],
                                                                                                coordPairToFaces[,i])),0))})
@@ -148,13 +111,13 @@ getTopology <- function(p, debug=F)
     repeat {
       currentFace <- remainingFaces[1] # start
       vertexFaceFig <- currentFace
-      vertexVexFig <- c() # TODO = vertexCoordFig
+      vertexCoordFig <- c() 
       repeat {
         # the edges neighbouring current face
         nbredges <- remainingRawEdges[edgeToFaces[remainingRawEdges,1]==currentFace | edgeToFaces[remainingRawEdges,2]==currentFace]
         if (length(nbredges) == 0) break # no neighbour edges remaining, must be done with this vertex
         nextFace <- ifelse(edgeToFaces[nbredges[1],1] == currentFace, edgeToFaces[nbredges[1],2], edgeToFaces[nbredges[1],1])
-        vertexVexFig <- c(vertexVexFig, which(coordPairToEdge[vi,]==nbredges[1])) # other coord connected by edge
+        vertexCoordFig <- c(vertexCoordFig, which(coordPairToEdge[vi,]==nbredges[1])) # other coord connected by edge
         remainingRawEdges <- setdiff(remainingRawEdges, nbredges[1])
         if (length(remainingRawEdges) == 0) break # really done, breaks second repeat also
         if (nextFace == remainingFaces[1]) break # back to start face
@@ -162,149 +125,24 @@ getTopology <- function(p, debug=F)
         currentFace <- nextFace
       }
       #print(vertexFaceFig)
-      #print(vertexVexFig)
+      #print(vertexCoordFig)
       vexFigures[[1+length(vexFigures)]] <- list(center = vi,
                                                          faces = vertexFaceFig,
-                                                         vex = vertexVexFig)
+                                                         vex = vertexCoordFig)
       
       remainingFaces <- setdiff(remainingFaces, vertexFaceFig)
       if (length(remainingFaces) == 0) break
     }
   }
-  
 
-
-  # # TODO find vertex figures by going rowwise through coordPairToFaces. Every row is one or
-  # # more vertex figures. Order by connecting the faces found in one row that share 2 coords.
-  # 
-  # # Knowing which edges connect to which faces we can now build up oriented lists of
-  # # faces and eges around any vertex
-  # 
-  # isConnectedToPreviousStartFace <- rep(F, length(faces))
-  # isUsedAsStartFace <- rep(F, length(faces))
-  # vexConnections <- list()
-  # startingFace <- NULL
-  # repeat {
-  #   if (is.null(startingFace)) {
-  #     # start just somewhere
-  #     startingFace <- 1
-  #   } else {
-  #     if (any(isConnectedToPreviousStartFace & !isUsedAsStartFace)) {
-  #       # prefer to continue on a face connected to any of the faces previously used
-  #       startingFace <- which(isConnectedToPreviousStartFace & !isUsedAsStartFace)[1]
-  #     } else {
-  #       # otherwise there may be a disjunct set of faces (multiple bodies) so start there
-  #       if (any(!isUsedAsStartFace)) {
-  #         startingFace <- which(!isUsedAsStartFace)[1]
-  #       } else {
-  #         # all faces used, we're done
-  #         break;
-  #       }
-  #     }
-  #   }
-  #   isUsedAsStartFace[startingFace] <- T
-  # 
-  #   # for (startingFace in seq(length(faces)))
-  #   if (debug) cat("start face:", getFaceForDebug(startingFace), fill=T)
-  # 
-  #   # check which vex we already have with this face in it
-  #   coveredPoints <- c()
-  #   if (length(vexConnections) > 0) {
-  #     vexCoveringThisStartingFace <- which(sapply(vexConnections, function(con) { return(startingFace %in% con$faces)}))
-  #     if (length(vexCoveringThisStartingFace) > 0) {
-  #       coveredPoints <- sapply(vexCoveringThisStartingFace, function(i) {return(vexConnections[[i]]$center)})
-  #       if (debug) cat("skipping already covered points for this face:", paste0(coveredPoints, collapse=";"), fill=T)
-  #     }
-  #   }
-  # 
-  #   for (centerPoint in setdiff(faces[[startingFace]], coveredPoints))
-  #   {
-  #     if (debug) cat("start building vertex around", centerPoint, fill=T)
-  #     vexToFaces <- c()
-  #     vexToVertex <- c()
-  #     f <- startingFace
-  # 
-  #     repeat
-  #     {
-  #       vexToFaces <- c(vexToFaces, f) # keep track of an oriented list of connected faces around centerPoint
-  #       isConnectedToPreviousStartFace[f] <- T
-  #       if (debug) cat("center",centerPoint, "face",getFaceForDebug(f), fill=T)
-  #       i <- which(faces[[f]] == centerPoint) # index in face f of centerPoint
-  #       prevPoint <- shiftrotate(faces[[f]],-1)[i] # point on an edge of face f that connects to centerPoint
-  #       vexToVertex <- c(vexToVertex, prevPoint) # keep track of an oriented list of connected points around centerPoint
-  # 
-  #       nextPoint <- shiftrotate(faces[[f]])[i] # find next face f that connects at edge nextPoint - centerPoint
-  #       f <- coordPairToFaces[ nextPoint, centerPoint ]
-  #       if (f == 0) {
-  #         foundAnyGaps <- T
-  #         cat("WARNING: there's a gap, no face to the right of the edge from", centerPoint, "to", nextPoint, fill=T)
-  #         # don't add this vex although in theory we could try adding vertices with gaps by first trying going
-  #         # the other way from the start - becomes messy and what if there are multiple gaps
-  #         break
-  #       }
-  # 
-  #       if (f == startingFace | f == 0) {
-  #         # check if we don't have this already - not just checking the same center point but also
-  #         # the set of faces as we could have multiple bodies just sharing a vertex but no faces
-  #         if (!any(sapply(vexConnections, function(con) { return( centerPoint == con$center &
-  #                                                                 setequal(vexToFaces, con$faces) &
-  #                                                                 setequal(vexToVertex, con$vex))})))
-  #         {
-  #           if (debug) cat("adding vex center",centerPoint,"faces:",paste(paste0("F",vexToFaces), collapse = ";"),"vex:",paste(vexToVertex, collapse=";"), fill=T)
-  #           vexConnections[[1+length(vexConnections)]] <- list(center = centerPoint,
-  #                                                              faces = vexToFaces,
-  #                                                              vex = vexToVertex)
-  #         } else {
-  #           # not sure this can even happen with the more careful choice of starting vertices in place now
-  #           if (debug) cat("skipping adding vex center",centerPoint,"faces:",paste(paste0("F",vexToFaces), collapse = ";"),"vex:",paste(vexToVertex, collapse=";"), fill=T)
-  #         }
-  #         break # next vertex
-  #       }
-  #     }
-  #   }
-  # }
+  # TODO change to something that create methods call in the end
   
   return (list(coordPairToEdge=coordPairToEdge, 
-               coordPairToFaces=coordPairToFaces, 
-               #vexConnections=vexConnections, 
-               vexConnections=vexFigures,
+               coordPairToFaces=coordPairToFaces, # TODO this one is redundant
+               edgeToFaces=edgeToFaces,
+               vertexFigures=vexFigures,
                bodies=bodies,
                hasGaps=foundAnyGaps))
-}
-
-# Return list of list of distinct bodies in p. List contains the face indices.
-findDistinctBodies <- function(p, topo = getTopology(p), debug=F)
-{
-  getConnectedFaces <- function(conn, body, debug=F)
-  {
-    bodycount <- 1
-    repeat {
-      f <- body[bodycount]
-      # vertices around this face
-      isConnectedToFace <- sapply(conn, function(c) { return(f %in% c$faces)})
-      if (length(isConnectedToFace) == 0) return(body) # f not connected, treat as separate body
-      vex <- which(isConnectedToFace)
-      # faces connected to any of these vertices
-      connectedFaces <- unique(as.vector(sapply(vex, function(x) {return(conn[[x]]$faces)})))
-      if (debug) cat("connected faces to", f, ":", paste(connectedFaces, collapse = ", "), fill=T)
-      newFaces <- setdiff(connectedFaces, body)
-      if (debug) cat("new faces:", paste(newFaces, collapse = ", "), fill=T)
-      #if (length(newFaces) == 0) break
-      body <- c(body, newFaces)
-      bodycount <- bodycount + 1
-      if (bodycount > length(body)) break
-    }
-    return(body)
-  }
-  
-  bodies <- list()
-  for (faceIdx in seq(length(p$faces))) {
-    b <- getConnectedFaces(topo$vexConnections, faceIdx)
-    if (!any(sapply(bodies, function(body) {return(setequal(body, b))}))) {
-      bodies[[1+length(bodies)]] <- b
-    }
-  }
-  return(bodies)
 }
 
 testTopology <- function()

@@ -121,7 +121,7 @@ drawPoly(p, debug=T)
 
 
 # Try create a description of the polygon
-# unique(sapply(vexConnections, function(c) { return(paste(sapply(c$faces, function(f) {return(length(p$faces[[f]]))}), collapse = ",")) }))
+# unique(sapply(vertexFigures, function(c) { return(paste(sapply(c$faces, function(f) {return(length(p$faces[[f]]))}), collapse = ",")) }))
 # 
 # Systematic list of all Archimedean solids and the operations to support:
 #   
