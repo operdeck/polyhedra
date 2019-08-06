@@ -204,8 +204,22 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
     drawAxes()
     spacing <- 0.1
     alpha <- 0.6 # in debug make somewhat transparent
+    
+    # coords
     spheres3d(x + p$coords[,1], y + p$coords[,2], z + p$coords[,3], color="green", radius = 0.02)
     text3d(x + (1+spacing)*p$coords[,1], y + (1+spacing)*p$coords[,2], z + (1+spacing)*p$coords[,3], text = seq(nrow(p$coords)), color="blue")
+    
+    # edges
+    if("coordPairToEdge" %in% names(p)) {
+      for (i in 1:(nrow(p$coordPairToEdge)-1)) {
+        for (j in (i+1):nrow(p$coordPairToEdge)) {
+          if (p$coordPairToEdge[i,j] != 0) {
+            mid <- apply(p$coords[c(i,j),],2,mean)
+            text3d(mid[1], mid[2], mid[3], text = paste0("e",p$coordPairToEdge[i,j]), color="black")
+          }
+        }
+      }
+    }    
   } else {
     alpha <- 1
   }
@@ -217,22 +231,16 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
     text3d(x, y + min(p$coords[,2]) - 1, z, text = label, color = "black", cex=0.7, pos = 1)
   }
   if (length(p$faces) > 0) { 
-    if (!debug) {
-      topo <- getTopology(p)
-      bodies <- topo$bodies # TODO when done with refactor should be possible also in debug
-      if (length(bodies) > 1) {
-        bodyColors <- rainbow(length(bodies))
-      }
-    } else {
-      bodies <- list()
+    if (length(p$bodies) > 1) {
+      bodyColors <- rainbow(length(p$bodies))
     }
     faceType <- as.integer(factor(sapply(p$faces, length))) # faces considered same just by nr of edges
     if (max(faceType) > 1) {
       faceTypeColors <- rainbow(max(faceType))  
     }
     for (f in seq(length(p$faces))) {
-      if (length(bodies) > 1) {
-        faceColor <- bodyColors[which(sapply(bodies, function(b) { return(f %in% b)}))]
+      if (length(p$bodies) > 1) {
+        faceColor <- bodyColors[which(sapply(p$bodies, function(b) { return(f %in% b)}))]
       } else {
         if (max(faceType) > 1) {
           faceColor <- faceTypeColors[faceType[f]]

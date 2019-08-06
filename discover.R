@@ -26,7 +26,7 @@ discover <- function(p, debug=F)
   for (i in seq(nrow(searchgrid))) {
     # NB it also creates polys with holes in it
     # some of the ones from dodecahedron are new!
-    poly <- buildRegularPoly(p$coords, searchgrid$facedim[i], 
+    s <- buildRegularPoly(p$coords, searchgrid$facedim[i], 
                              searchgrid$vertexdim[i], 
                              c(searchgrid$vertex1[i], searchgrid$vertex2[i]), debug=debug)
     if (length(poly$faces) > 0) {
@@ -47,9 +47,11 @@ discover <- function(p, debug=F)
   }
 }
 
-# if (debug) print("All done!")
-#discover(rhombic(dodecahedron), debug=F)
+testDiscover <- function()
+{
+  discover(rhombic(dodecahedron), debug=T)
+ 
+  discover(dodecahedron, debug=T) # problems 
+}
 
-stop("issues below:")
 
-discover(dodecahedron, debug=T) # problems

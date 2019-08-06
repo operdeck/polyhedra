@@ -217,6 +217,17 @@ snapshot3d("snapshots/compound5cubes.png", fmt = "png", top = TRUE )
 
 ![5 Cubes and variations](snapshots/compound5cubes.png)
 
+### Variation on Rhombic Dodecahedron
+
+```{r, include=F}
+clear3d()
+variationOnRhombicDodecahedron <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4), name="Variation on Rhombic Dodecahedron")
+drawPoly(variationOnRhombicDodecahedron)
+snapshot3d("snapshots/variationOnRhombicDodecahedron.png", fmt = "png", top = TRUE )
+```
+
+![Variation on Rhombic Dodecahedron](snapshots/variationOnRhombicDodecahedron.png)
+
 ## Discovery mode
 
 TODO show

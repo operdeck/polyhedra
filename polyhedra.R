@@ -7,10 +7,10 @@ source("draw.R")
 source("topology.R")
 
 # Returns T if outward facing (= rotating anti-clockwise when looking down towards face in direction of origin)
-isNormalOutwardFacing <- function(p, f)
+isNormalOutwardFacing <- function(coords, f)
 {
-  n <- normal( p$coords[f[1],], p$coords[f[2],], p$coords[f[3],] )
-  mid <- apply(p$coords[f,],2,mean)
+  n <- normal( coords[f[1],], coords[f[2],], coords[f[3],] )
+  mid <- apply(coords[f,],2,mean)
   return (vectorlength(mid+n) > vectorlength(mid-n))
 }
 
@@ -51,12 +51,11 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
     if (debug) cat("Face complete", fill=T)
     
     # We're done, but just make sure to have the normal face outward
-    if (!isNormalOutwardFacing(p, aFace)) {
-      if (debug) cat("Flip face to make normal outward facing", fill=T)
+    if (!isNormalOutwardFacing(p$coords, aFace)) {
+      if (debug) cat("Flip new face to make normal outward facing", fill=T)
       aFace <- rev(aFace)
     }
     
-    # consider turning it upside down here to normalize the normal
     return(aFace)
   }
   
@@ -94,6 +93,26 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
   }
   
   return(NULL)
+}
+
+# Internal call to set everything after coords and faces are defined
+setPoly <- function(coords, faces, name, debug=F)
+{
+  # make sure all faces are oriented consistently
+  for (i in seq(length(faces))) {
+    if (!isNormalOutwardFacing(coords, faces[[i]])) {
+      if (debug) cat("Flip face", i, "to make normal outward facing", fill=T)
+      faces[[i]] <- rev(faces[[i]])
+    }
+  }
+
+  newPoly <- list(coords=coords, faces=faces, name=name)
+  t <- topology(newPoly)
+  for (x in names(t)) {
+    newPoly[[x]] <- t[[x]] # copy over the topology attributes
+  }
+
+  return (newPoly)
 }
 
 # TODO consider building polygon from just symbol like {3,5}
@@ -167,15 +186,15 @@ buildRegularPoly <- function(coords, polygonsize, vertexsize, exampleEdge = c(1,
     }
   } 
   
-  return(poly)
+  newPoly <- setPoly(poly$coords, poly$faces, poly$name, debug)
+  
+  return(newPoly)
 }
 
 dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
 {
-  topo <- getTopology(p)
-  
   newVertexCoords <- t(sapply(p$faces, function(f) { return(apply(p$coords[f,],2,mean))}))
-  newFaces <- lapply(topo$vertexFigures, function(c) {return(c$faces)})
+  newFaces <- lapply(p$vertexFigures, function(c) {return(c$faces)})
   
   # scale so that mid of a new vertex is at same distance from origin as mid
   # of an old vertex - works at least for regulars, otherwise somewhat arbitrary
@@ -191,48 +210,27 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
     stop(paste("Wrong scaling argument:", scaling))
   }
   
-  pDual <- list( coords = newVertexCoords*scale, faces = newFaces, name = name)
-  
-  # TODO it is possible we end up with uneven faces e.g.
-  # dual(rhombic(dodecahedron)) --> break the face up into triangles?
-  
-  # make sure all faces are oriented consistently
-  for (i in seq(length(pDual$faces))) {
-    if (!isNormalOutwardFacing(pDual, pDual$faces[[i]])) {
-      if (debug) cat("Flip face to make normal outward facing", fill=T)
-      pDual$faces[[i]] <- rev(pDual$faces[[i]])
-    }
-  }
-  
+  pDual <- setPoly(newVertexCoords*scale, newFaces, name, debug)
+
   return(pDual)
 }
 
 # Create an derived polyhedron by truncating all coords to the mid of the faces
 rhombic <- function(p, name=paste("rhombic", p$name), debug=F)
 {
-  topo <- getTopology(p)
-  
   # new points are midpoints of all edges ; the index of each edge is obtained using lookup in the coordPairToEdge matrix
-  archiPoints <- normalizedistances(t(sapply(seq(max(topo$coordPairToEdge)), function(e) { 
-    w <- which(topo$coordPairToEdge==e & upper.tri(topo$coordPairToEdge)) # shall be one and only one
-    return(apply(p$coords[c((w - 1) %/% nrow(topo$coordPairToEdge) + 1, 
-                            (w - 1) %% nrow(topo$coordPairToEdge) + 1),],2,mean))
+  archiPoints <- normalizedistances(t(sapply(seq(max(p$coordPairToEdge)), function(e) { 
+    w <- which(p$coordPairToEdge==e & upper.tri(p$coordPairToEdge)) # shall be one and only one
+    return(apply(p$coords[c((w - 1) %/% nrow(p$coordPairToEdge) + 1, 
+                            (w - 1) %% nrow(p$coordPairToEdge) + 1),],2,mean))
   })))
   # one set of faces comes from the vertices neighbouring each point
-  archiFaces1 <- lapply(topo$vertexFigures, function(vex) { return(topo$coordPairToEdge[vex$vex, vex$center])})
+  archiFaces1 <- lapply(p$vertexFigures, function(vex) { return(p$coordPairToEdge[vex$vex, vex$center])})
   # the other set comes from the faces, using midpoints of their edges
-  archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(topo$coordPairToEdge[f[j], shiftrotate(f)[j]])})})
+  archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(p$coordPairToEdge[f[j], shiftrotate(f)[j]])})})
   
-  pArchi <- list(coords = archiPoints, faces = c(archiFaces1, archiFaces2), name=name)
-  
-  # make sure all faces are oriented consistently
-  for (i in seq(length(pArchi$faces))) {
-    if (!isNormalOutwardFacing(pArchi, pArchi$faces[[i]])) {
-      if (debug) cat("Flip face to make normal outward facing", fill=T)
-      pArchi$faces[[i]] <- rev(pArchi$faces[[i]])
-    }
-  }
-  
+  pArchi <- setPoly(archiPoints, c(archiFaces1, archiFaces2), name, debug)
+
   return(pArchi)
 }
 
@@ -256,21 +254,21 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
   
   # TODO now relabel indices the faces of p2 using the mapping p2NewReference
   
-  return(list(coords = rbind(p1$coords, p2$coords),
+  return(setPoly(coords = rbind(p1$coords, p2$coords),
               faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$coords)) })),
-              name = name))
+              name,
+              debug))
 }
 
 # Create new polyhedron by chopping off the coords replacing each by a new face
 # TODO lin alg to find new points is not ok yet
+# TODO make use of topology
 snub <- function(p, name = paste("snub", p$name), debug=F)
 {
-  topo <- getTopology(p)
-  
   # every vertex becomes a new face with all new points
   allPoints <- NULL
   allFaces <- list()
-  for (v in topo$vertexFigures) {
+  for (v in p$vertexFigures) {
     # create new points close to vertex center C in direction of the connected points P
     # new point = C + alpha*(PC)
     angles <- innerAngles(p$coords[v$vex,], center=p$coords[v$center,])
@@ -303,16 +301,8 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
     allFaces[[length(allFaces)+1]] <- snubbedFace
   }
   
-  pSnub <- list(coords = allPoints[,1:3], faces = allFaces, name=name)
-  
-  # make sure all faces are oriented consistently
-  for (i in seq(length(pSnub$faces))) {
-    if (!isNormalOutwardFacing(pSnub, pSnub$faces[[i]])) {
-      if (debug) cat("Flip face to make normal outward facing", fill=T)
-      pSnub$faces[[i]] <- rev(pSnub$faces[[i]])
-    }
-  }
-  
+  pSnub <- setPoly(coords = allPoints[,1:3], faces = allFaces, name=name, debug)
+
   return(pSnub)
 }
 
@@ -362,13 +352,17 @@ description <- function(p, debug=F)
   
   getVertexDescription <- function(aVertex)
   {
-    faceDescriptions <- sapply(aVertex$faces, function(fi) { return(getFaceDescription(p$faces[[fi]])) })
+    faceDescriptions <- sapply(aVertex$faces, function(fi) { 
+      if (fi == 0) return("GAP")
+      else return(getFaceDescription(p$faces[[fi]])) })
     vexDescriptions <- getFaceDescription(aVertex$vex, addlengths=F)
     
     if (length(unique(faceDescriptions)) == 1 & length(unique(vexDescriptions)) == 1) {
       vexDescription <- paste0("{",faceDescriptions[1],",",vexDescriptions[1],"}")
     } else {
-      vexDescription <- paste0("{",paste(faceDescriptions, collapse=","),"}") # TODO put in best order
+      # shiftrotate them so we consistently take the same one
+      descrs <- sapply(1:length(faceDescriptions), function(i) {return(paste(shiftrotate(faceDescriptions,i+1),collapse=","))})
+      vexDescription <- paste0("{",(sort(descrs))[1],"}") 
     }
     
     return(vexDescription)
@@ -383,11 +377,9 @@ description <- function(p, debug=F)
     return(bodyDescription)
   }
   
-  topo <- getTopology(p)  
-
-  bodyDescriptions <- lapply(topo$bodies, function(b) {
+  bodyDescriptions <- lapply(p$bodies, function(b) {
     # subselect vertices that have faces in current body
-    getBodyDescription(topo$vertexFigures[sapply(topo$vertexFigures, function(t) {return(length(intersect(t$faces, b)) > 0 )})])
+    getBodyDescription(p$vertexFigures[sapply(p$vertexFigures, function(t) {return(length(intersect(t$faces, b)) > 0 )})])
   })
   polyDescription <- combineDescriptions(bodyDescriptions, paste0("X", length(bodyDescriptions)))
   

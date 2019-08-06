@@ -53,12 +53,13 @@ deltaEquals <- function(x, y, delta = 1e-6)
 }
 
 # angle between vectors v1 and v2
-vectorAngle <- function(v1, v2)
+vectorAngle <- function(w1, w2)
 {
   #print(asin(vectorlength(crossproductv(v1, v2))/(vectorlength(v1)*vectorlength(v2)))*360/(2*pi))
   #atan2d(norm(cross(u,v)),dot(u,v))
   #return (base::atan2(vectorlength(crossproductv(v1, v2)), (as.numeric(v1) %*% as.numeric(v2))))
-  return (acos((as.numeric(v1) %*% as.numeric(v2))/(vectorlength(v1)*vectorlength(v2))))
+  r <- as.numeric(as.numeric(w1) %*% as.numeric(w2))/(vectorlength(w1)*vectorlength(w2))
+  return (acos(min(max(r,-1),1))) # rounding errors can cause acos problems
 }
 
 # given a matrix of coordinates of a face, give the angles of the vectors from the center to the consecutive vertices

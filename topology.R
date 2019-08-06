@@ -2,6 +2,8 @@ library(data.table)
 
 # Things that do not depend on coordinates
 
+dropZeros <- function(a) { return(a[a!=0]) }
+
 # Derives the topology of a polyhedron based on just a list of faces. Each face consists of a list
 # of references to coords as everywhere else. The returned structure contains
 #
@@ -14,13 +16,12 @@ library(data.table)
 #       - the indices of the faces surrounding the vertex (in order)
 #       - the indices of the coords connected to this vertex (in order)
 
-getTopology <- function(p, debug=F)
+topology <- function(p, debug=F)
 {
   faces <- p$faces # possibility to cache the topology or parts of it
   
   n_vertices <- max(sapply(faces, max))
-  foundAnyGaps <- F # TODO derive from face matrix below (a-symmetries)
-  
+
   getFaceForDebug <- function(faceidx)
   {
     if (faceidx < 1 | faceidx > length(faces)) {
@@ -87,7 +88,8 @@ getTopology <- function(p, debug=F)
   
   bodies <- list()
   repeat {
-    remainingEdges <- which(apply(edgeToFaces, 1, function(e2f) {(e2f[1] != 0 & !(e2f[1] %in% unlist(bodies))) & (e2f[2] != 0 & !(e2f[2] %in% unlist(bodies)))}))
+    # remainingEdges <- which(apply(edgeToFaces, 1, function(e2f) {(e2f[1] != 0 & !(e2f[1] %in% unlist(bodies))) & (e2f[2] != 0 & !(e2f[2] %in% unlist(bodies)))}))
+    remainingEdges <- which(apply(edgeToFaces, 1, function(e2f) {!(e2f[1] %in% unlist(bodies)) & !(e2f[2] %in% unlist(bodies))}))
     if (length(remainingEdges) == 0) break
     startEdge <- remainingEdges[1]
     currentBody <- unique(c(addConnectedFaces(edgeToFaces[startEdge,1], setdiff(remainingEdges, startEdge)), 
@@ -97,17 +99,14 @@ getTopology <- function(p, debug=F)
   
   # Vertex figures: start with a raw list of all faces connected to a coord, then process each of these
   # to set order (via edges) and split (if there are multiple solids sharing a coord)
-  # TODO make more robust against gaps 
   vexFigures <- list()
   rawVertexFigures <- lapply(seq(nrow(coordPairToFaces)), function(i) {return(setdiff(unique(c(coordPairToFaces[i,],
                                                                                                coordPairToFaces[,i])),0))})
-  for (vi in seq(length(rawVertexFigures))) {
+  for (vertexCenterPoint in seq(length(rawVertexFigures))) {
     # all the edges that connect pairs of the faces in this raw vertex
-    v <- rawVertexFigures[[vi]]
-    if (length(v) == 0) break # in case of gaps
-    # TODO more restrictive, use coords to vex
-    remainingRawEdges <- which(sapply(seq(nrow(edgeToFaces)), function(i) {return((edgeToFaces[i,1] %in% c(0,v)) & (edgeToFaces[i,2] %in% c(0, v)))}))
-    remainingFaces <- v
+    remainingFaces <- rawVertexFigures[[vertexCenterPoint]]
+    if (length(remainingFaces) == 0) break # in case of gaps
+    remainingRawEdges <- dropZeros(coordPairToEdge[vertexCenterPoint,])
     repeat {
       currentFace <- remainingFaces[1] # start
       vertexFaceFig <- currentFace
@@ -117,7 +116,7 @@ getTopology <- function(p, debug=F)
         nbredges <- remainingRawEdges[edgeToFaces[remainingRawEdges,1]==currentFace | edgeToFaces[remainingRawEdges,2]==currentFace]
         if (length(nbredges) == 0) break # no neighbour edges remaining, must be done with this vertex
         nextFace <- ifelse(edgeToFaces[nbredges[1],1] == currentFace, edgeToFaces[nbredges[1],2], edgeToFaces[nbredges[1],1])
-        vertexCoordFig <- c(vertexCoordFig, which(coordPairToEdge[vi,]==nbredges[1])) # other coord connected by edge
+        vertexCoordFig <- c(vertexCoordFig, which(coordPairToEdge[vertexCenterPoint,]==nbredges[1])) # other coord connected by edge
         remainingRawEdges <- setdiff(remainingRawEdges, nbredges[1])
         if (length(remainingRawEdges) == 0) break # really done, breaks second repeat also
         if (nextFace == remainingFaces[1]) break # back to start face
@@ -126,7 +125,7 @@ getTopology <- function(p, debug=F)
       }
       #print(vertexFaceFig)
       #print(vertexCoordFig)
-      vexFigures[[1+length(vexFigures)]] <- list(center = vi,
+      vexFigures[[1+length(vexFigures)]] <- list(center = vertexCenterPoint,
                                                          faces = vertexFaceFig,
                                                          vex = vertexCoordFig)
       
@@ -141,14 +140,13 @@ getTopology <- function(p, debug=F)
                coordPairToFaces=coordPairToFaces, # TODO this one is redundant
                edgeToFaces=edgeToFaces,
                vertexFigures=vexFigures,
-               bodies=bodies,
-               hasGaps=foundAnyGaps))
+               bodies=bodies))
 }
 
 testTopology <- function()
 {
-  t <- getTopology(cube)
-  t <- getTopology(compose(cube, dual(cube))) # two bodies
+  t <- topology(cube)
+  t <- topology(compose(cube, dual(cube))) # two bodies
   
   # two strange pyramids sharing a coord
   coords <- as.matrix(rbind(data.table(x=cos(2*pi*(0:3)/4), y=sin(2*pi*(0:3)/4), z=0),
@@ -157,23 +155,28 @@ testTopology <- function()
   strangedualpyramid <- list(coords=coords, faces=list(c(1:4), c(5:8), 
                                                        c(1,2,9), c(2,3,9), c(3,4,9), c(4,1,9),
                                                        c(5,6,9), c(6,7,9), c(7,8,9), c(8,5,9)))
-  t <- getTopology(strangedualpyramid)
+  t <- topology(strangedualpyramid)
   drawPoly(strangedualpyramid)
   
-  # todo similar with gaps
+  cubewfewgaps <- list(coords=cube$coords, faces=cube$faces[c(T,F,T,T,F,T)])
+  drawSinglePoly(cubewfewgaps, debug=F)
+  t <- topology(cubewfewgaps)
+  
+  cubewithmanygaps <- list(coords=cube$coords, faces=cube$faces[c(F,T,F,F,T,F)])
+  drawSinglePoly(cubewithmanygaps, debug=F)
   
   poly <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4))
   drawSinglePoly(poly)
   
   simplified <- list(coords=poly$coords, faces=list(poly$faces[[1]], poly$faces[[2]]), name="debug")
-  t <- getTopology(simplified) # errors
-  drawSinglePoly(simplified, debug=T)
+  t <- topology(simplified) # errors
+  drawSinglePoly(simplified, debug=F)
 }
 # poly <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4))
 # clear3d()
 # drawSinglePoly(poly, debug = T) # this shows the error drawing {5/2} # but now goes into a loop?
 # # huh, now it works but not in non-debug
-# topo <- getTopology(poly, debug=T) # this errors out on edge 4-1 / into a loop
+# topo <- topology(poly, debug=T) # this errors out on edge 4-1 / into a loop
 # 
 # # face is "below" origin
 # faces <- poly$faces
@@ -182,9 +185,9 @@ testTopology <- function()
 # print(simplified$faces[[1]])
 # print(simplified$faces[[2]])
 # drawSinglePoly(simplified, debug = T) # shows drawing error and orientation issue when using [[1]],[[2]]
-# getTopology(simplified) # loops
+# topology(simplified) # loops
 # 
 # # with a fix we get into a loop in 
-# getTopology(simplified, debug=T)
+# topology(simplified, debug=T)
 
 
