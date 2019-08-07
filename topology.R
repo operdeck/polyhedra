@@ -20,7 +20,7 @@ topology <- function(p, debug=F)
 {
   faces <- p$faces # possibility to cache the topology or parts of it
   
-  n_vertices <- max(sapply(faces, max))
+  n_vertices <- max(c(0,unlist(sapply(faces,max))))
 
   getFaceForDebug <- function(faceidx)
   {
@@ -34,10 +34,10 @@ topology <- function(p, debug=F)
 
   coordPairToEdge <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
   coordPairToFaces <- matrix(nrow=n_vertices, ncol=n_vertices, data=0)
-  for (f in seq(length(faces))) {
+  for (f in safeseq(length(faces))) {
     currentFace <- faces[[f]]
     currentFaceS <- shiftrotate(currentFace)
-    for (i in seq(length(currentFace))) {
+    for (i in safeseq(length(currentFace))) {
       if (0 == coordPairToFaces[currentFace[i], currentFaceS[i]]) {
         coordPairToFaces[currentFace[i], currentFaceS[i]] <- f
       } else {
@@ -59,9 +59,9 @@ topology <- function(p, debug=F)
   
   # Build edgeToFaces from those two matrices. coordPairToEdge[n, 1:2] gives the two faces next to n
   
-  edgeToFaces <- matrix(nrow=max(coordPairToEdge), ncol=2, data=0)
-  for (i in seq(nrow(coordPairToEdge))) {
-    for (j in seq(ncol(coordPairToEdge))) {
+  edgeToFaces <- matrix(nrow=max(c(0,coordPairToEdge)), ncol=2, data=0)
+  for (i in safeseq(nrow(coordPairToEdge))) {
+    for (j in safeseq(ncol(coordPairToEdge))) {
       edge <- coordPairToEdge[i,j]
       if (edge != 0) {
         edgeToFaces[edge, 1] <- coordPairToFaces[i,j]  
@@ -100,9 +100,9 @@ topology <- function(p, debug=F)
   # Vertex figures: start with a raw list of all faces connected to a coord, then process each of these
   # to set order (via edges) and split (if there are multiple solids sharing a coord)
   vexFigures <- list()
-  rawVertexFigures <- lapply(seq(nrow(coordPairToFaces)), function(i) {return(setdiff(unique(c(coordPairToFaces[i,],
+  rawVertexFigures <- lapply(safeseq(nrow(coordPairToFaces)), function(i) {return(setdiff(unique(c(coordPairToFaces[i,],
                                                                                                coordPairToFaces[,i])),0))})
-  for (vertexCenterPoint in seq(length(rawVertexFigures))) {
+  for (vertexCenterPoint in safeseq(length(rawVertexFigures))) {
     # all the edges that connect pairs of the faces in this raw vertex
     remainingFaces <- rawVertexFigures[[vertexCenterPoint]]
     if (length(remainingFaces) == 0) break # in case of gaps
@@ -137,7 +137,7 @@ topology <- function(p, debug=F)
   # TODO change to something that create methods call in the end
   
   return (list(coordPairToEdge=coordPairToEdge, 
-               coordPairToFaces=coordPairToFaces, # TODO this one is redundant
+               coordPairToFaces=coordPairToFaces,
                edgeToFaces=edgeToFaces,
                vertexFigures=vexFigures,
                bodies=bodies))

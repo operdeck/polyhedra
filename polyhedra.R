@@ -99,7 +99,7 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
 setPoly <- function(coords, faces, name, debug=F)
 {
   # make sure all faces are oriented consistently
-  for (i in seq(length(faces))) {
+  for (i in safeseq(length(faces))) {
     if (!isNormalOutwardFacing(coords, faces[[i]])) {
       if (debug) cat("Flip face", i, "to make normal outward facing", fill=T)
       faces[[i]] <- rev(faces[[i]])
@@ -181,10 +181,11 @@ buildRegularPoly <- function(coords, polygonsize, vertexsize, exampleEdge = c(1,
       if (debug) drawPoly(poly, debug=T)
     } else {
       if (debug) print("Can't construct polygon!")
-      poly$faces <- list()
-      break
+      return(NULL)
     }
   } 
+  
+  if (length(poly$faces) == 0) { return(NULL) }
   
   newPoly <- setPoly(poly$coords, poly$faces, poly$name, debug)
   
@@ -301,7 +302,7 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
     allFaces[[length(allFaces)+1]] <- snubbedFace
   }
   
-  pSnub <- setPoly(coords = allPoints[,1:3], faces = allFaces, name=name, debug)
+  pSnub <- setPoly(coords = as.matrix(allPoints[,1:3]), faces = allFaces, name=name, debug)
 
   return(pSnub)
 }
@@ -417,23 +418,42 @@ icosahedron <- buildRegularPoly(coords = rbind(expand.grid(x = 0, y = c(-1,1), z
 
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
-# description(octahedron)
-# description(cube)
-# description(smallStellatedDodecahedron)
-# description(rhombic(cube))
-# description(compose(cube, octahedron))
-# 
-# sapply(lapply(Regulars, dual), description)
+Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
 
-# p <- octahedron #smallStellatedDodecahedron
-# f <- p$faces[[1]]
-# innerAngles(p$coords[f,])*360/2/pi
+greatDodecahedron <- buildRegularPoly(coords = icosahedron$coords, 
+                                      polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6),
+                                      name = "Great Dodecahedron")
+smallStellatedDodecahedron <- buildRegularPoly(icosahedron$coords,
+                                               polygonsize = 5,
+                                               vertexsize = 5,
+                                               exampleEdge = c(1,7),
+                                               name = "Small Stellated Dodecahedron")
+greatIcosahedron <- buildRegularPoly(icosahedron$coords,
+                                     polygonsize = 3,
+                                     vertexsize = 5,
+                                     exampleEdge = c(2, 6),
+                                     name = "Great Icosahedron")
+greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", 
+                                   scaling = "vertex")
 
-# to test the above
-# p1<-smallStellatedDodecahedron
-# p2<-dual(p1, scaling="vertex")
+KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, 
+                       greatIcosahedron, greatStellatedDodecahedron)
 
-# # checking the normals of the face
-# p <- octahedron
-# drawPoly(p, debug=T)
+testPolyhedra <- function()
+{
+  clear3d()
+  
+  drawPoly(Platonics)
+  drawPoly(lapply(Platonics, dual))
+  drawPoly(lapply(Platonics, function(p) { return(compose(p, dual(p))) }))
+  drawPoly(lapply(Platonics, rhombic))
+  drawPoly(lapply(Platonics, function(p) { return(rhombic(rhombic(p))) })) # results in irregular faces
+  drawPoly(lapply(Platonics, snub))
+  drawPoly(lapply(Platonics, function(p) { return(dual(snub(p))) }))
+  
+  drawPoly(KeplerPoinsots)
+  drawPoly(lapply(KeplerPoinsots, dual))
+  drawPoly(lapply(KeplerPoinsots, function(p) { return(compose(p, dual(p))) }))
+  drawPoly(lapply(KeplerPoinsots, snub)) # gives problems
+}
 

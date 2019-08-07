@@ -183,7 +183,8 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
                  col=col, alpha=alpha)
   } else if (length(face) > 3) {
     ang <- innerAngles(coords[face,])
-    if(sum(ang) > 2*pi) {
+    
+    if((sum(ang) > 2*pi) & !deltaEquals(sum(ang), 2*pi)) {
       drawStarPolygon(face, coords, col, alpha, offset)
       # drawPolygonTriangulate(face, coords, col, alpha, offset)
     } else {

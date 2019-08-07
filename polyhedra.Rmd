@@ -22,6 +22,7 @@ For example, below we construct an octahedron by passing in the 8 vertex coordin
 ```{r, warning=F, comment=F}
 source("polyhedra.R")
 source("draw.R")
+source("discover.R")
 
 octahedron <- buildRegularPoly(coords = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), 
                                                 expand.grid(x = 0, y = c(-1,1), z = 0), 
@@ -137,9 +138,27 @@ snapshot3d("snapshots/rhombicarchimedeans.png", fmt = "png", top = TRUE )
 
 ![Rhombic Archimedean solids](snapshots/rhombicarchimedeans.png)
 
-## Various stellations
+## Snub transformation
 
-### 5 Tetrahedra
+Every vertex becomes a face like in the rhombic transformation, but part of the original edges are kept, so in effect the original faces are doubled in number of sides.
+
+Snub transformation doesnt seem to work well for the star polyhedra.
+
+```{r}
+snubarchimedeans <- lapply(Platonics, snub)
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(snubarchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0))
+snapshot3d("snapshots/snubarchimedeans.png", fmt = "png", top = TRUE )
+```
+
+![Snub Archimedean solids](snapshots/snubarchimedeans.png)
+
+# Various stellations
+
+## 5 Tetrahedra and derived
 
 Compound of 5 tetrahedra. The dual of this turns the other way around.
 
@@ -192,7 +211,7 @@ snapshot3d("snapshots/compound10terahedra.png", fmt = "png", top = TRUE )
 
 ![10 Tetrahedra](snapshots/compound10terahedra.png)
 
-### 5 Cubes
+## 5 Cubes and derived
 
 The compound of 5 cubes shares the vertices of the dodecahedron. The dual of this one is the compound of 5 tetrahedra (not suprisingly) while the "rhombic" transform turns it into 5 of one of the simpler Archimedean solids {3,4,3,4}.
 
@@ -217,7 +236,7 @@ snapshot3d("snapshots/compound5cubes.png", fmt = "png", top = TRUE )
 
 ![5 Cubes and variations](snapshots/compound5cubes.png)
 
-### Variation on Rhombic Dodecahedron
+## Variation on Rhombic Dodecahedron
 
 ```{r, include=F}
 clear3d()
@@ -228,9 +247,53 @@ snapshot3d("snapshots/variationOnRhombicDodecahedron.png", fmt = "png", top = TR
 
 ![Variation on Rhombic Dodecahedron](snapshots/variationOnRhombicDodecahedron.png)
 
-## Discovery mode
+# Discovery mode
 
-TODO show
+In *discovery mode* it tries to fit (semi)regular polyhedra through a given set of coordinates. All other parameters (face and vertex dimension, edge length) are "discovered" by doing a grid search.
+
+For the cube, nothing new emerges but it automatically finds the composite of two tetrahedra fitting the same coordinates as the cube.
+
+```{r}
+cube_discoveries <- discover(cube, progress = F)
+cube_discoveries$specs
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(cube_discoveries$polyhedra, label = "Discoveries based on cube")
+snapshot3d("snapshots/cube_discoveries.png", fmt = "png", top = TRUE )
+```
+
+![Discoveries based on cube](snapshots/cube_discoveries.png)
+
+For the tetrahedron and octahedron nothing new emerges but from the next two a more interesting family of polyhedra arises although unfortunately no new polyhedra relative to the ones shown before.
+
+```{r}
+dodecahedron_discoveries <- discover(dodecahedron, progress = F)
+dodecahedron_discoveries$specs
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(dodecahedron_discoveries$polyhedra, label = "Discoveries based on dodecahedron")
+snapshot3d("snapshots/dodecahedron_discoveries.png", fmt = "png", top = TRUE )
+```
+
+![Discoveries based on dodecahedron](snapshots/dodecahedron_discoveries.png)
+
+```{r}
+icosahedron_discoveries <- discover(icosahedron, progress = F)
+icosahedron_discoveries$specs
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(icosahedron_discoveries$polyhedra, label = "Discoveries based on icosahedron")
+snapshot3d("snapshots/icosahedron_discoveries.png", fmt = "png", top = TRUE )
+```
+
+![Discoveries based on icosahedron](snapshots/icosahedron_discoveries.png)
+
 
 # Next steps
 
