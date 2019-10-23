@@ -29,6 +29,11 @@ Regulars <- c(Platonics, KeplerPoinsots)
 
 Duals <- lapply(Regulars[seq(length(Regulars))%%2==1], dual)
 
+# For printing
+# clear3d()
+# drawPoly(lapply(KeplerPoinsots, dual), start = c(0,2,0))
+# drawPoly(lapply(Platonics, snub), delta = c(2, 0, 0), label = "")
+# snapshot3d("snubs.png", fmt="png", top=T)
 
 clear3d()
 drawAxes()

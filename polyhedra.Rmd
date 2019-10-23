@@ -1,5 +1,5 @@
 ---
-title: "Polyhedra"
+title: "Otto's Polyhedra"
 output:
   html_document:
     df_print: paged
