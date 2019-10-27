@@ -38,13 +38,13 @@ normal <- function(p1, p2, p3)
   return (n / vectorlength(n))
 }
 
-distance <- function(a, b)
+distance <- function(a, b = apply(a,2,mean))
 {
   if (is.matrix(a)) {
     if (is.matrix(b)) {
       return (sqrt(sum((a-b)^2))) # both are a matrix
     } else {
-      return (sqrt(rowSums((matrix(rep(b,nrow(a)),nrow=nrow(a),byrow=T) - b)^2)))
+      return (sqrt(rowSums((matrix(rep(b,nrow(a)),nrow=nrow(a),byrow=T) - a)^2)))
     }
   } else {
     if (is.matrix(b)) {
