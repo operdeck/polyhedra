@@ -99,7 +99,7 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
 setPoly <- function(coords, faces, name, debug=F)
 {
   # make sure all faces are oriented consistently
-  for (i in safeseq(length(faces))) {
+  for (i in seq(length(faces))) {
     if (!isNormalOutwardFacing(coords, faces[[i]])) {
       if (debug) cat("Flip face", i, "to make normal outward facing", fill=T)
       faces[[i]] <- rev(faces[[i]])
@@ -181,11 +181,10 @@ buildRegularPoly <- function(coords, polygonsize, vertexsize, exampleEdge = c(1,
       if (debug) drawPoly(poly, debug=T)
     } else {
       if (debug) print("Can't construct polygon!")
-      return(NULL)
+      poly$faces <- list()
+      break
     }
   } 
-  
-  if (length(poly$faces) == 0) { return(NULL) }
   
   newPoly <- setPoly(poly$coords, poly$faces, poly$name, debug)
   
@@ -217,7 +216,7 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
 }
 
 # Create an derived polyhedron by truncating all coords to the mid of the faces
-rhombic <- function(p, name=paste("rhombic", p$name), debug=F)
+quasi <- function(p, name=paste("quasi", p$name), debug=F)
 {
   # new points are midpoints of all edges ; the index of each edge is obtained using lookup in the coordPairToEdge matrix
   archiPoints <- normalizedistances(t(sapply(seq(max(p$coordPairToEdge)), function(e) { 
@@ -261,10 +260,12 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
               debug))
 }
 
-# Create new polyhedron by chopping off the coords replacing each by a new face
+# Create new polyhedron by chopping off the vertices replacing each by a new face
+# but keeping existing faces intact, in effect doubling their number of vertices
 # TODO lin alg to find new points is not ok yet
 # TODO make use of topology
-snub <- function(p, name = paste("snub", p$name), debug=F)
+# truncate(quasi(cube)) errors out but should give something even if not regular
+truncate <- function(p, name = paste("truncate", p$name), debug=F)
 {
   # every vertex becomes a new face with all new points
   allPoints <- NULL
@@ -296,19 +297,19 @@ snub <- function(p, name = paste("snub", p$name), debug=F)
   }
   for (f in p$faces)
   {
-    snubbedFace <- as.vector(sapply(seq(length(f)), function(idx) {
+    truncatebedFace <- as.vector(sapply(seq(length(f)), function(idx) {
       return(c(newPointsLookup[f[idx], shiftrotate(f)[idx]], 
                newPointsLookup[shiftrotate(f)[idx], f[idx]]))}))
-    allFaces[[length(allFaces)+1]] <- snubbedFace
+    allFaces[[length(allFaces)+1]] <- truncatebedFace
   }
   
-  pSnub <- setPoly(coords = as.matrix(allPoints[,1:3]), faces = allFaces, name=name, debug)
+  pTruncate <- setPoly(coords = allPoints[,1:3], faces = allFaces, name=name, debug)
 
-  return(pSnub)
+  return(pTruncate)
 }
 
 # clear3d()
-# drawSinglePoly(snub(cube), debug=T)
+# drawSinglePoly(truncate(cube), debug=T)
 
 description <- function(p, debug=F)
 {
@@ -418,42 +419,86 @@ icosahedron <- buildRegularPoly(coords = rbind(expand.grid(x = 0, y = c(-1,1), z
 
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
-Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
+# description(octahedron)
+# description(cube)
+# description(smallStellatedDodecahedron)
+# description(quasi(cube))
+# description(compose(cube, octahedron))
+# 
+# sapply(lapply(Regulars, dual), description)
 
-greatDodecahedron <- buildRegularPoly(coords = icosahedron$coords, 
-                                      polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6),
-                                      name = "Great Dodecahedron")
-smallStellatedDodecahedron <- buildRegularPoly(icosahedron$coords,
-                                               polygonsize = 5,
-                                               vertexsize = 5,
-                                               exampleEdge = c(1,7),
-                                               name = "Small Stellated Dodecahedron")
-greatIcosahedron <- buildRegularPoly(icosahedron$coords,
-                                     polygonsize = 3,
-                                     vertexsize = 5,
-                                     exampleEdge = c(2, 6),
-                                     name = "Great Icosahedron")
-greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", 
-                                   scaling = "vertex")
+# p <- octahedron #smallStellatedDodecahedron
+# f <- p$faces[[1]]
+# innerAngles(p$coords[f,])*360/2/pi
 
-KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, 
-                       greatIcosahedron, greatStellatedDodecahedron)
+# to test the above
+# p1<-smallStellatedDodecahedron
+# p2<-dual(p1, scaling="vertex")
 
-testPolyhedra <- function()
+# # checking the normals of the face
+# p <- octahedron
+# drawPoly(p, debug=T)
+
+
+stop("new trunc")
+
+rgl_init()
+clear3d()
+drawAxes()
+xx <- quasi(cube) # pooff
+xx <- greatDodecahedron
+drawPoly(xx, debug=T)
+
+rgl_init(new.device = T)
+clear3d()
+drawAxes()
+
+newpts <- list()
+for(v in xx$vertexFigures) 
 {
-  clear3d()
-  
-  drawPoly(Platonics)
-  drawPoly(lapply(Platonics, dual))
-  drawPoly(lapply(Platonics, function(p) { return(compose(p, dual(p))) }))
-  drawPoly(lapply(Platonics, rhombic))
-  drawPoly(lapply(Platonics, function(p) { return(rhombic(rhombic(p))) })) # results in irregular faces
-  drawPoly(lapply(Platonics, snub))
-  drawPoly(lapply(Platonics, function(p) { return(dual(snub(p))) }))
-  
-  drawPoly(KeplerPoinsots)
-  drawPoly(lapply(KeplerPoinsots, dual))
-  drawPoly(lapply(KeplerPoinsots, function(p) { return(compose(p, dual(p))) }))
-  drawPoly(lapply(KeplerPoinsots, snub)) # gives problems
+  text3d( x=xx$coords[v$center,1], 
+          y=xx$coords[v$center,2], 
+          z=xx$coords[v$center,3], color="red", texts = v$center)
+  for (p in v$vex) 
+  {
+    lines3d( x=xx$coords[c(v$center, p),1], 
+             y=xx$coords[c(v$center, p),2], 
+             z=xx$coords[c(v$center, p),3], color="blue")
+    text3d( x=xx$coords[p,1], 
+            y=xx$coords[p,2], 
+            z=xx$coords[p,3], color="red", texts = p)
+  }
+  # new point from center of vertex figure is on line to connected point at relative distance alpha
+  alpha <- sapply(seq(length(v$vex)), 
+                  function(i) {return(1/(2+vectorlength(xx$coords[v$vex[i],]-xx$coords[shiftrotate(v$vex)[i],])/
+                                           vectorlength(xx$coords[v$vex[i],]-xx$coords[v$center,])))})
+  newpts[[v$center]] <- as.data.table(t(sapply(seq(length(v$vex)),
+                   function(i) {return((1-alpha[i])*xx$coords[v$center,] + alpha[i]*xx$coords[v$vex[i], ])})))
+  newpts[[v$center]]$center <- v$center
+  newpts[[v$center]]$connected <- v$vex
+  text3d( x=newpts[[v$center]]$x, 
+          y=newpts[[v$center]]$y, 
+          z=newpts[[v$center]]$z, color="darkgreen", texts = newpts[[v$center]]$connected)
 }
+
+newcoords <- rbindlist(newpts)
+newcoords[,newcoordidx := seq(.N)]
+
+# the new faces at the old vertices
+newfaces <- newcoords[, .( connected = list(connected), coords = list(newcoordidx)) , by=center]
+
+# the old faces require some careful indexing
+oldfaces <- list()
+for (f in xx$faces) {
+  prv <- shiftrotate(f,-1)
+  nxt <- shiftrotate(f)
+  oldfaces[[1+length(oldfaces)]] <- 
+    as.numeric(sapply(seq(length(f)), function(i) {return(c(newcoords[center==f[i]&connected==prv[i]]$newcoordidx,
+                                                            newcoords[center==f[i]&connected==nxt[i]]$newcoordidx))}))
+}
+
+# done!
+trunc_xx <- setPoly(coords = as.matrix(newcoords[,1:3]),
+        faces = c(newfaces$coords, oldfaces), name="truncate2")
+drawPoly(trunc_xx)
 

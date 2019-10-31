@@ -32,8 +32,8 @@ Duals <- lapply(Regulars[seq(length(Regulars))%%2==1], dual)
 # For printing
 # clear3d()
 # drawPoly(lapply(KeplerPoinsots, dual), start = c(0,2,0))
-# drawPoly(lapply(Platonics, snub), delta = c(2, 0, 0), label = "")
-# snapshot3d("snubs.png", fmt="png", top=T)
+# drawPoly(lapply(Platonics, truncate), delta = c(2, 0, 0), label = "")
+# snapshot3d("truncates.png", fmt="png", top=T)
 
 clear3d()
 drawAxes()
@@ -44,8 +44,8 @@ drawPoly(Duals, start = c(0, 0, -3), delta = c(6, 0, 0), label = "Duals of Regul
 combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(compose(p, dual(p))) })
 drawPoly(combis, start = c(0, 0, -6), delta = c(6, 0, 0), label = "Combined")
 
-rhombics <- lapply(Regulars, rhombic)
-drawPoly(rhombics, start = c(0, 0, -9), delta = c(6, 0, 0), label = "Rhombic")
+quasis <- lapply(Regulars, quasi)
+drawPoly(quasis, start = c(0, 0, -9), delta = c(6, 0, 0), label = "Quasi")
 
 # cubedirect <- buildRegularPoly(coords = expand.grid(x = c(-1, 1), y = c(-1, 1), z = c(-1, 1)),
 #                                polygonsize = 4,
@@ -65,13 +65,13 @@ compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
 # so two triangles really form a {6/2} together
 dodecahedronStellations <- list(compound5tetrahedra,
                                 dual(compound5tetrahedra, name = "Dual 5 Tetrahedra"),
-                                rhombic(compound5tetrahedra, name = "Rhombic of 5 Tetrahedra"),
+                                quasi(compound5tetrahedra, name = "Quasi of 5 Tetrahedra"),
                                 compose(compound5tetrahedra, dual(compound5tetrahedra), name = "10 Tetrahedra"))
 
 drawPoly(dodecahedronStellations, start = c(3*4, 6, 0), delta = c(0, 0, -5), label = "Stellations Dodecahedron")
 
 clear3d()
-drawSinglePoly(dual(rhombic(octahedron)))
+drawSinglePoly(dual(quasi(octahedron)))
 
 # below does not look entirely OK, there are clashing faces but
 # this could be due to the way {5/2} etc are trianglulized currently
@@ -96,13 +96,13 @@ compound5Cubes <- buildRegularPoly(dodecahedron$coords,
                                     vertexsize = 6,
                                     exampleEdge = c(1, 8),
                                    name = "5 Cubes")
-moreDodecahedronStellations <- list(compound5Cubes, dual(compound5Cubes), rhombic(compound5Cubes))
+moreDodecahedronStellations <- list(compound5Cubes, dual(compound5Cubes), quasi(compound5Cubes))
 drawPoly(moreDodecahedronStellations, start = c(3*5, 6, 0), delta = c(0, 0, -5))
 # this one we saw before: dual(compound5Cubes)
 
 clear3d()
 # looks nice but faces overlap?
-#drawPoly(rhombic(compound10Cubes), x = 3, y = -3, label="many rhombics") ### 5??
+#drawPoly(quasi(compound10Cubes), x = 3, y = -3, label="many quasis") ### 5??
 
 # saving to files:
 # snapshot3d( "gallery.png", fmt = "png", top = TRUE )
@@ -122,7 +122,7 @@ drawPoly(p, debug=T)
 # NB not sure the normalization should stay here - maybe we should apply a single factor to all
 
 
-# Possibly the snub also
+# Possibly the truncate also
 
 
 # Try create a description of the polygon

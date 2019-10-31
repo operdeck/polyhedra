@@ -65,7 +65,7 @@ testDiscover <- function()
   clear3d()
   drawPoly(discs$polyhedra)
   
-  discs <- discover(rhombic(dodecahedron))
+  discs <- discover(quasi(dodecahedron))
   clear3d()
   drawPoly(discs$polyhedra) # why not 5 x tetrahedra part of this?
   

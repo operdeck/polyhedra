@@ -6,7 +6,7 @@ source("draw.R")
 cube <- dual(octahedron, name = "Cube")
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
-xx <- rhombic(cube)
+xx <- quasi(cube)
 drawPoly(xx, debug=T)
 
 # for layout use a new device

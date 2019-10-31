@@ -7,9 +7,7 @@ output:
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook to explore the construction of polyhedra using the construction code from (https://github.com/operdeck/polyhedra).
 
-A small list of basic polyhedra is constructed from pre-defined sets of coordinates and topology. More complex polyhedra can be built using transformations that turn them into their dual, snubbing, truncating, stellation and more. In addition there is a discovery mode where the vertices of one polyhedron are used to discover others by trying to fit different faces onto the vertices.
-
-PS inspiration for a very nice RPub: http://rpubs.com/RexGalilae/weather-events
+A small list of basic polyhedra is constructed from pre-defined sets of coordinates and topology. More complex polyhedra can be built using transformations that turn them into their dual, truncatebing, truncating, stellation and more. In addition there is a discovery mode where the vertices of one polyhedron are used to discover others by trying to fit different faces onto the vertices.
 
 # The Platonic solids
 
@@ -119,42 +117,45 @@ snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
 
 ![Combination of regular polyhedra with their duals](snapshots/regulars-with-duals.png)
 
-## Rhombic transformation
+## Quasi transformation
 
-### Rhombic Archimedean solids
+### Quasi Regular Archimedean solids
 
 The first of the transformations to turn regular solids into Archimedean solids turns each edge into a new vertex. Old faces basically become rotated as their new points are the mids of their old edges. Every vertex of the old solid becomes a new face of its own.
 
+The transform is symmetric, so quasi(cube) = quasi(octahedron).
+
 ```{r}
 # Here as well, since applying to regular solids only need to do half of them
-rhombicarchimedeans <- lapply(Regulars[seq(length(Regulars))%%2==1], rhombic)
+quasiarchimedeans <- lapply(Regulars[seq(length(Regulars))%%2==1], quasi)
 ```
 
 ```{r, include=F}
 clear3d()
-drawPoly(rhombicarchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0))
-snapshot3d("snapshots/rhombicarchimedeans.png", fmt = "png", top = TRUE )
+drawPoly(quasiarchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0))
+snapshot3d("snapshots/quasiarchimedeans.png", fmt = "png", top = TRUE )
 ```
 
-![Rhombic Archimedean solids](snapshots/rhombicarchimedeans.png)
+![Quasi Archimedean solids](snapshots/quasiarchimedeans.png)
 
-## Snub transformation
+## Truncate transformation
 
-Every vertex becomes a face like in the rhombic transformation, but part of the original edges are kept, so in effect the original faces are doubled in number of sides.
+Every vertex becomes a face like in the quasi transformation, but part of the original edges are kept, so in effect the original faces are doubled in number of sides.
 
-Snub transformation doesnt seem to work well for the star polyhedra.
+NB Truncate transformation doesnt seem to work well for the star polyhedra.
+Also, some work to do to make the Truncate transform more generally applicable e.g. simply truncate(quasi(cube))
 
 ```{r}
-snubarchimedeans <- lapply(Platonics, snub)
+truncatearchimedeans <- lapply(Platonics, truncate)
 ```
 
 ```{r, include=F}
 clear3d()
-drawPoly(snubarchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0))
-snapshot3d("snapshots/snubarchimedeans.png", fmt = "png", top = TRUE )
+drawPoly(truncatearchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0))
+snapshot3d("snapshots/truncatearchimedeans.png", fmt = "png", top = TRUE )
 ```
 
-![Snub Archimedean solids](snapshots/snubarchimedeans.png)
+![Truncate Archimedean solids](snapshots/truncatearchimedeans.png)
 
 # Various stellations
 
@@ -179,10 +180,10 @@ snapshot3d("snapshots/compound5tetrahedra.png", fmt = "png", top = TRUE )
 
 ![5 Tetrahedra with dual](snapshots/compound5tetrahedra.png)
 
-The "rhombic" transformation of this turns it into the compound of 5 octahedra.
+The "quasi" transformation of this turns it into the compound of 5 octahedra.
 
 ```{r}
-compound5octahedra <- rhombic(compound5tetrahedra, name = "5 Octahedra")
+compound5octahedra <- quasi(compound5tetrahedra, name = "5 Octahedra")
 ```
 
 ```{r, include=F}
@@ -213,7 +214,7 @@ snapshot3d("snapshots/compound10terahedra.png", fmt = "png", top = TRUE )
 
 ## 5 Cubes and derived
 
-The compound of 5 cubes shares the vertices of the dodecahedron. The dual of this one is the compound of 5 tetrahedra (not suprisingly) while the "rhombic" transform turns it into 5 of one of the simpler Archimedean solids {3,4,3,4}.
+The compound of 5 cubes shares the vertices of the dodecahedron. The dual of this one is the compound of 5 tetrahedra (not suprisingly) while the "quasi" transform turns it into 5 of one of the simpler Archimedean solids {3,4,3,4}.
 
 NB that last one again suffers from rendering issues.
 
@@ -225,7 +226,7 @@ compound5Cubes <- buildRegularPoly(dodecahedron$coords,
                                    name = "5 Cubes")
 moreDodecahedronStellations <- list(compound5Cubes, 
                                     dual(compound5Cubes), 
-                                    rhombic(compound5Cubes))
+                                    quasi(compound5Cubes))
 ```
 
 ```{r, include=F}
@@ -236,16 +237,16 @@ snapshot3d("snapshots/compound5cubes.png", fmt = "png", top = TRUE )
 
 ![5 Cubes and variations](snapshots/compound5cubes.png)
 
-## Variation on Rhombic Dodecahedron
+## Variation on Quasi Dodecahedron
 
 ```{r, include=F}
 clear3d()
-variationOnRhombicDodecahedron <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4), name="Variation on Rhombic Dodecahedron")
-drawPoly(variationOnRhombicDodecahedron)
-snapshot3d("snapshots/variationOnRhombicDodecahedron.png", fmt = "png", top = TRUE )
+variationOnQuasiDodecahedron <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4), name="Variation on Quasi Dodecahedron")
+drawPoly(variationOnQuasiDodecahedron)
+snapshot3d("snapshots/variationOnQuasiDodecahedron.png", fmt = "png", top = TRUE )
 ```
 
-![Variation on Rhombic Dodecahedron](snapshots/variationOnRhombicDodecahedron.png)
+![Variation on Quasi Dodecahedron](snapshots/variationOnQuasiDodecahedron.png)
 
 # Discovery mode
 
