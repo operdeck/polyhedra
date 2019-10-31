@@ -70,6 +70,12 @@ vectorAngle <- function(w1, w2)
   return (acos(min(max(r,-1),1))) # rounding errors can cause acos problems
 }
 
+# full 360 degree angle - NB may not work vectorized yet
+vectorAngle2D <- function(w1, w2)
+{
+  theta <-  atan2(w1[2], w1[1]) - atan2(w2[2], w2[1])
+}
+
 # given a matrix of coordinates of a face, give the angles of the vectors from the center to the consecutive vertices
 innerAngles <- function(coords, center = apply(coords,2,mean))
 {
@@ -78,4 +84,11 @@ innerAngles <- function(coords, center = apply(coords,2,mean))
   return (sapply(seq(nrow(v1)), function(i) { vectorAngle(v1[i,], v2[i,]) }))
 }
 
+# 2D rotation matrix
+rotationMatrix2D <- function(theta)
+{
+  return (matrix(c(cos(theta), sin(theta), -sin(theta), cos(theta)), nrow=2))
+}
+
+# often used in polyhedra
 phi <- (1+sqrt(5))/2
