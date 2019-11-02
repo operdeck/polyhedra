@@ -500,5 +500,6 @@ for (f in xx$faces) {
 # done!
 trunc_xx <- setPoly(coords = as.matrix(newcoords[,1:3]),
         faces = c(newfaces$coords, oldfaces), name="truncate2")
-drawPoly(trunc_xx)
+clear3d()
+drawSinglePoly(trunc_xx, debug = T)
 

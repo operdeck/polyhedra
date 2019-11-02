@@ -168,7 +168,7 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
   if (drawlines) {
     lines3d(coords[c(face, face[1]),1] + offset[1],
             coords[c(face, face[1]),2] + offset[2],
-            coords[c(face, face[1]),3] + offset[3], color="blue")
+            coords[c(face, face[1]),3] + offset[3], color="orange")
   }
   if (!is.null(label)) {
     center <- apply(coords[face,], 2, mean)
@@ -185,8 +185,11 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
     ang <- innerAngles(coords[face,])
     
     if((sum(ang) > 2*pi) & !deltaEquals(sum(ang), 2*pi)) {
+      # check if they're in the same plane! 
+      # if not --> triangulate
+      
       drawStarPolygon(face, coords, col, alpha, offset)
-      # drawPolygonTriangulate(face, coords, col, alpha, offset)
+      #drawPolygonTriangulate(face, coords, col, alpha, offset)
     } else {
       drawPolygonTriangulate(face, coords, col, alpha, offset)
       # polygon3d( offset[1] + coords$x[face],

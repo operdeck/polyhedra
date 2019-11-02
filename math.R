@@ -14,25 +14,44 @@ safeseq <- function(n, by=1)
   return(seq(from=1, to=n, by=by))
 }
 
-crossproduct <- function(ab, ac){
-  abci = ab[2] * ac[3] - ac[2] * ab[3]
-  abcj = ac[1] * ab[3] - ab[1] * ac[3]
-  abck = ab[1] * ac[2] - ac[1] * ab[2]
-  return (c(abci, abcj, abck))
+crossproduct <- function(v1, v2){
+  if (is.matrix(v1) & !is.matrix(v2)) {
+    # promote v2
+    v2 <- matrix(rep(v2,nrow(v1)),nrow=nrow(v1),byrow=T)
+  }
+  if (is.matrix(v2) & !is.matrix(v1)) {
+    # promote v1
+    v1 <- matrix(rep(v1,nrow(v2)),nrow=nrow(v2),byrow=T)
+  }
+  if (!is.matrix(v1) & !is.matrix(v2)) {
+    prodx = v1[2] * v2[3] - v2[2] * v1[3]
+    prody = v2[1] * v1[3] - v1[1] * v2[3]
+    prodz = v1[1] * v2[2] - v2[1] * v1[2]
+    return (c(prodx, prody, prodz))
+  } else {
+    prodx = v1[,2] * v2[,3] - v2[,2] * v1[,3]
+    prody = v2[,1] * v1[,3] - v1[,1] * v2[,3]
+    prodz = v1[,1] * v2[,2] - v2[,1] * v1[,2]
+    return (matrix(c(prodx, prody, prodz), ncol = 3))
+  }
 }
 
 # Length of point p passed in as a vector of values
 vectorlength <- function(coords)
 {
-  return(sqrt(sum(coords^2)))
+  if (is.matrix(coords)) {
+    return(sqrt(sqrt(rowSums(coords ^ 2 )))) # TODO DOUBLE CHECK THIS STUFF
+  } else {
+    return(sqrt(sum(coords^2)))
+  }
 }
 
-normalizedistances <- function(coords) 
+normalizedistances <- function(coords) # this already works on matrices
 {
   return (coords/apply(coords, 1, vectorlength))
 }
 
-normal <- function(p1, p2, p3)
+normal <- function(p1, p2, p3) # NEED VECTORIZED SO CAN QUICKLY CHECK ALL NORMALS BEING PARALLEL
 {
   n <- crossproduct(p2-p1, p3-p1)
   return (n / vectorlength(n))
