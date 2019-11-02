@@ -52,7 +52,7 @@ Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
 ```{r, include=F}
 # TODO use screen better / other viewpoint
 rgl_init(width=640, height=400, new.device = T)
-drawPoly(Platonics, start = c(1, 1, 1), delta = c(2, 0, 0))
+drawPoly(Platonics, start = c(1, 1, 1), delta = c(2, 0, 0), label = "Platonic solids")
 snapshot3d("snapshots/platonics.png", fmt = "png", top = TRUE )
 ```
 
@@ -86,7 +86,7 @@ Regulars <- c(Platonics, KeplerPoinsots)
 
 ```{r, include=F}
 clear3d()
-drawPoly(KeplerPoinsots, start = c(1, 1, 1), delta = c(2, -0.5, 0))
+drawPoly(KeplerPoinsots, start = c(1, 1, 1), delta = c(2, -0.5, 0), label = "Kepler Poinsot solids")
 snapshot3d("snapshots/keplerpoinsots.png", fmt = "png", top = TRUE )
 ```
 
@@ -111,7 +111,7 @@ combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(com
 ```{r, include=F}
 # TODO better layout, maybe two rows
 clear3d()
-drawPoly(combis, start = c(1, 1, 1), delta = c(2, -0.5, 0))
+drawPoly(combis, start = c(1, 1, 1), delta = c(2, -0.5, 0), label = "Compositions with dual")
 snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
 ```
 
@@ -132,7 +132,7 @@ quasiarchimedeans <- lapply(Regulars[seq(length(Regulars))%%2==1], quasi)
 
 ```{r, include=F}
 clear3d()
-drawPoly(quasiarchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0))
+drawPoly(quasiarchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Quasi regular solids")
 snapshot3d("snapshots/quasiarchimedeans.png", fmt = "png", top = TRUE )
 ```
 
@@ -142,8 +142,8 @@ snapshot3d("snapshots/quasiarchimedeans.png", fmt = "png", top = TRUE )
 
 Every vertex becomes a face like in the quasi transformation, but part of the original edges are kept, so in effect the original faces are doubled in number of sides.
 
-NB Truncate transformation doesnt seem to work well for the star polyhedra.
-Also, some work to do to make the Truncate transform more generally applicable e.g. simply truncate(quasi(cube))
+NB Truncate transformation doesnt seem too work well for the star polyhedra.
+NB FIXED? Also, some work to do to make the Truncate transform more generally applicable e.g. simply truncate(quasi(cube))
 
 ```{r}
 truncatearchimedeans <- lapply(Platonics, truncate)
@@ -151,11 +151,24 @@ truncatearchimedeans <- lapply(Platonics, truncate)
 
 ```{r, include=F}
 clear3d()
-drawPoly(truncatearchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0))
+drawPoly(truncatearchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Truncated regular solids")
 snapshot3d("snapshots/truncatearchimedeans.png", fmt = "png", top = TRUE )
 ```
 
-![Truncate Archimedean solids](snapshots/truncatearchimedeans.png)
+![Truncated regular solids](snapshots/truncatearchimedeans.png)
+
+```{r}
+truncatedstars <- lapply(KeplerPoinsots[c(1,3)], truncate)
+# the other 2 don't work / even cause an error
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(truncatedstars, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Truncated Kepler Poinsot solids")
+snapshot3d("snapshots/truncatedstars.png", fmt = "png", top = TRUE )
+```
+
+![Truncated Kepler Poinsots](snapshots/truncatedstars.png)
 
 # Various stellations
 
@@ -174,7 +187,7 @@ compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
 ```{r, include=F}
 clear3d()
 drawPoly(list(compound5tetrahedra, dual(compound5tetrahedra)), 
-         start = c(1, 1, 1), delta = c(2, -0.5, 0))
+         start = c(1, 1, 1), delta = c(2, -0.5, 0), "Compound of 5 Tetrahedra + dual")
 snapshot3d("snapshots/compound5tetrahedra.png", fmt = "png", top = TRUE )
 ```
 
@@ -231,7 +244,7 @@ moreDodecahedronStellations <- list(compound5Cubes,
 
 ```{r, include=F}
 clear3d()
-drawPoly(moreDodecahedronStellations, start = c(1, 1, 1), delta = c(2, -0.5, 0))
+drawPoly(moreDodecahedronStellations, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Stellations in Dodecahedron family")
 snapshot3d("snapshots/compound5cubes.png", fmt = "png", top = TRUE )
 ```
 
@@ -267,7 +280,7 @@ snapshot3d("snapshots/cube_discoveries.png", fmt = "png", top = TRUE )
 
 ![Discoveries based on cube](snapshots/cube_discoveries.png)
 
-For the tetrahedron and octahedron nothing new emerges but from the next two a more interesting family of polyhedra arises although unfortunately no new polyhedra relative to the ones shown before.
+For the tetrahedron and octahedron nothing new emerges either but from the next two a more interesting family of polyhedra arises although unfortunately no new polyhedra relative to the ones shown before.
 
 ```{r}
 dodecahedron_discoveries <- discover(dodecahedron, progress = F)

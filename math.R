@@ -40,7 +40,7 @@ crossproduct <- function(v1, v2){
 vectorlength <- function(coords)
 {
   if (is.matrix(coords)) {
-    return(sqrt(sqrt(rowSums(coords ^ 2 )))) # TODO DOUBLE CHECK THIS STUFF
+    return(sqrt(rowSums(coords^2)))
   } else {
     return(sqrt(sum(coords^2)))
   }
@@ -51,7 +51,7 @@ normalizedistances <- function(coords) # this already works on matrices
   return (coords/apply(coords, 1, vectorlength))
 }
 
-normal <- function(p1, p2, p3) # NEED VECTORIZED SO CAN QUICKLY CHECK ALL NORMALS BEING PARALLEL
+normal <- function(p1, p2, p3)
 {
   n <- crossproduct(p2-p1, p3-p1)
   return (n / vectorlength(n))
@@ -107,6 +107,23 @@ innerAngles <- function(coords, center = apply(coords,2,mean))
 rotationMatrix2D <- function(theta)
 {
   return (matrix(c(cos(theta), sin(theta), -sin(theta), cos(theta)), nrow=2))
+}
+
+# Check if face is flat, given a matrix of coordinates
+isFlatFace <- function(faceCoords)
+{
+  if (nrow(faceCoords) <= 3) return(T)
+  
+  # cp <- crossproduct(faceCoords - faceCoords[shiftrotate(seq(nrow(faceCoords))),], 
+  #                    faceCoords[shiftrotate(seq(nrow(faceCoords))),] - faceCoords[shiftrotate(seq(nrow(faceCoords)),n = 2),])
+  cp <- normal(faceCoords, 
+               faceCoords[shiftrotate(seq(nrow(faceCoords))),], 
+               faceCoords[shiftrotate(seq(nrow(faceCoords)),n = 2),])
+  
+  for (i in seq(nrow(faceCoords))) {
+    if (!deltaEquals(0, vectorAngle(cp[i,], cp[(i %% nrow(faceCoords))+1,]))) return (F)  
+  } 
+  return(T)
 }
 
 # often used in polyhedra

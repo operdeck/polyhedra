@@ -9,6 +9,8 @@ source("topology.R")
 # Returns T if outward facing (= rotating anti-clockwise when looking down towards face in direction of origin)
 isNormalOutwardFacing <- function(coords, f)
 {
+  if (length(f) < 3) return(T) # we dont know
+  
   n <- normal( coords[f[1],], coords[f[2],], coords[f[3],] )
   mid <- apply(coords[f,],2,mean)
   return (vectorlength(mid+n) > vectorlength(mid-n))
@@ -98,11 +100,18 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
 # Internal call to set everything after coords and faces are defined
 setPoly <- function(coords, faces, name, debug=F)
 {
+  if (ncol(coords) != 3) stop("Coords must be 3D")
+  coords <- as.matrix(coords)
+  
+  if (length(faces) < 1) return (NULL)
+  
   # make sure all faces are oriented consistently
   for (i in seq(length(faces))) {
-    if (!isNormalOutwardFacing(coords, faces[[i]])) {
-      if (debug) cat("Flip face", i, "to make normal outward facing", fill=T)
-      faces[[i]] <- rev(faces[[i]])
+    if (!is.null(faces[[i]])) {
+      if (!isNormalOutwardFacing(coords, faces[[i]])) {
+        if (debug) cat("Flip face", i, "to make normal outward facing", fill=T)
+        faces[[i]] <- rev(faces[[i]])
+      }
     }
   }
 
@@ -111,7 +120,7 @@ setPoly <- function(coords, faces, name, debug=F)
   for (x in names(t)) {
     newPoly[[x]] <- t[[x]] # copy over the topology attributes
   }
-
+  
   return (newPoly)
 }
 
@@ -211,7 +220,7 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
   }
   
   pDual <- setPoly(newVertexCoords*scale, newFaces, name, debug)
-
+  
   return(pDual)
 }
 
@@ -230,7 +239,7 @@ quasi <- function(p, name=paste("quasi", p$name), debug=F)
   archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(p$coordPairToEdge[f[j], shiftrotate(f)[j]])})})
   
   pArchi <- setPoly(archiPoints, c(archiFaces1, archiFaces2), name, debug)
-
+  
   return(pArchi)
 }
 
@@ -255,9 +264,9 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
   # TODO now relabel indices the faces of p2 using the mapping p2NewReference
   
   return(setPoly(coords = rbind(p1$coords, p2$coords),
-              faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$coords)) })),
-              name,
-              debug))
+                 faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$coords)) })),
+                 name,
+                 debug))
 }
 
 # Create new polyhedron by chopping off the vertices replacing each by a new face
@@ -304,7 +313,7 @@ truncate <- function(p, name = paste("truncate", p$name), debug=F)
   }
   
   pTruncate <- setPoly(coords = allPoints[,1:3], faces = allFaces, name=name, debug)
-
+  
   return(pTruncate)
 }
 
@@ -327,7 +336,8 @@ description <- function(p, debug=F)
       }
     } else {
       # returning them as a frequency table (12 x a + 5 x b)
-      return(paste(sapply(seq(nrow(descrFreqs)), function(i) {return(paste0(descrFreqs$N[i], "x", descrFreqs$V1[i]))}), collapse=" + "))
+      return(paste(sapply(seq(nrow(descrFreqs)), 
+                          function(i) {return(paste0(descrFreqs$N[i], "x", descrFreqs$V1[i]))}), collapse=" + "))
     }
   }
   
@@ -345,8 +355,13 @@ description <- function(p, debug=F)
       # simple polygon
       fDescr <- baseDescr
     } else {
-      # polygon with multiple rounds
-      fDescr <- paste(baseDescr, sum(angles)/(2*pi), sep="/") # TODO maybe round
+      if (!isFlatFace(p$coords[f,])) {
+        # not a real polygon, not flat!
+        fDescr <- paste0("!",baseDescr)
+      } else {
+        # star polygon
+        fDescr <- paste(baseDescr, sum(angles)/(2*pi), sep="/") # TODO maybe round
+      }
     }
     #cat("Face:",f,fDescr,fill=T)
     return(fDescr)
@@ -383,6 +398,7 @@ description <- function(p, debug=F)
     # subselect vertices that have faces in current body
     getBodyDescription(p$vertexFigures[sapply(p$vertexFigures, function(t) {return(length(intersect(t$faces, b)) > 0 )})])
   })
+  
   polyDescription <- combineDescriptions(bodyDescriptions, paste0("X", length(bodyDescriptions)))
   
   return(polyDescription)
@@ -419,13 +435,16 @@ icosahedron <- buildRegularPoly(coords = rbind(expand.grid(x = 0, y = c(-1,1), z
 
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
-# description(octahedron)
-# description(cube)
-# description(smallStellatedDodecahedron)
-# description(quasi(cube))
-# description(compose(cube, octahedron))
-# 
-# sapply(lapply(Regulars, dual), description)
+testDescription <- function()
+{
+  description(octahedron)
+  description(cube)
+  description(smallStellatedDodecahedron)
+  description(quasi(cube))
+  description(compose(cube, octahedron))
+  
+  sapply(lapply(Regulars, dual), description)
+}
 
 # p <- octahedron #smallStellatedDodecahedron
 # f <- p$faces[[1]]
@@ -440,66 +459,58 @@ dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 # drawPoly(p, debug=T)
 
 
-stop("new trunc")
-
-rgl_init()
-clear3d()
-drawAxes()
-xx <- quasi(cube) # pooff
-xx <- greatDodecahedron
-drawPoly(xx, debug=T)
-
-rgl_init(new.device = T)
-clear3d()
-drawAxes()
-
-newpts <- list()
-for(v in xx$vertexFigures) 
+truncate <- function(p, name = paste("truncate2", p$name), debug=F)
 {
-  text3d( x=xx$coords[v$center,1], 
-          y=xx$coords[v$center,2], 
-          z=xx$coords[v$center,3], color="red", texts = v$center)
-  for (p in v$vex) 
+  newpts <- list()
+  for(v in p$vertexFigures) 
   {
-    lines3d( x=xx$coords[c(v$center, p),1], 
-             y=xx$coords[c(v$center, p),2], 
-             z=xx$coords[c(v$center, p),3], color="blue")
-    text3d( x=xx$coords[p,1], 
-            y=xx$coords[p,2], 
-            z=xx$coords[p,3], color="red", texts = p)
+    if(debug){
+      text3d( x=p$coords[v$center,1], 
+              y=p$coords[v$center,2], 
+              z=p$coords[v$center,3], color="red", texts = v$center)
+      for (p in v$vex) 
+      {
+        lines3d( x=p$coords[c(v$center, p),1], 
+                 y=p$coords[c(v$center, p),2], 
+                 z=p$coords[c(v$center, p),3], color="blue")
+        text3d( x=p$coords[p,1], 
+                y=p$coords[p,2], 
+                z=p$coords[p,3], color="red", texts = p)
+      }
+    }
+    # new point from center of vertex figure is on line to connected point at relative distance alpha
+    alpha <- sapply(seq(length(v$vex)), 
+                    function(i) {return(1/(2+vectorlength(p$coords[v$vex[i],]-p$coords[shiftrotate(v$vex)[i],])/
+                                             vectorlength(p$coords[v$vex[i],]-p$coords[v$center,])))})
+    newpts[[v$center]] <- as.data.table(t(sapply(seq(length(v$vex)),
+                                                 function(i) {return((1-alpha[i])*p$coords[v$center,] + alpha[i]*p$coords[v$vex[i], ])})))
+    newpts[[v$center]]$center <- v$center
+    newpts[[v$center]]$connected <- v$vex
+    if (debug) {
+      text3d( x=newpts[[v$center]]$x, 
+              y=newpts[[v$center]]$y, 
+              z=newpts[[v$center]]$z, color="darkgreen", texts = newpts[[v$center]]$connected)
+    }
   }
-  # new point from center of vertex figure is on line to connected point at relative distance alpha
-  alpha <- sapply(seq(length(v$vex)), 
-                  function(i) {return(1/(2+vectorlength(xx$coords[v$vex[i],]-xx$coords[shiftrotate(v$vex)[i],])/
-                                           vectorlength(xx$coords[v$vex[i],]-xx$coords[v$center,])))})
-  newpts[[v$center]] <- as.data.table(t(sapply(seq(length(v$vex)),
-                   function(i) {return((1-alpha[i])*xx$coords[v$center,] + alpha[i]*xx$coords[v$vex[i], ])})))
-  newpts[[v$center]]$center <- v$center
-  newpts[[v$center]]$connected <- v$vex
-  text3d( x=newpts[[v$center]]$x, 
-          y=newpts[[v$center]]$y, 
-          z=newpts[[v$center]]$z, color="darkgreen", texts = newpts[[v$center]]$connected)
+  
+  newcoords <- rbindlist(newpts)
+  newcoords[,newcoordidx := seq(.N)]
+  
+  # the new faces at the old vertices
+  newfaces <- newcoords[, .( connected = list(connected), coords = list(newcoordidx)) , by=center]
+  
+  # the old faces require some careful indexing
+  oldfaces <- list()
+  for (f in p$faces) {
+    prv <- shiftrotate(f,-1)
+    nxt <- shiftrotate(f)
+    oldfaces[[1+length(oldfaces)]] <- 
+      as.numeric(sapply(seq(length(f)), function(i) {return(c(newcoords[center==f[i]&connected==prv[i]]$newcoordidx,
+                                                              newcoords[center==f[i]&connected==nxt[i]]$newcoordidx))}))
+  }
+  
+  # done!
+  trunc2 <- setPoly(coords = as.matrix(newcoords[,1:3]),
+                      faces = c(newfaces$coords, oldfaces), name=name, debug)
+  return (trunc2)
 }
-
-newcoords <- rbindlist(newpts)
-newcoords[,newcoordidx := seq(.N)]
-
-# the new faces at the old vertices
-newfaces <- newcoords[, .( connected = list(connected), coords = list(newcoordidx)) , by=center]
-
-# the old faces require some careful indexing
-oldfaces <- list()
-for (f in xx$faces) {
-  prv <- shiftrotate(f,-1)
-  nxt <- shiftrotate(f)
-  oldfaces[[1+length(oldfaces)]] <- 
-    as.numeric(sapply(seq(length(f)), function(i) {return(c(newcoords[center==f[i]&connected==prv[i]]$newcoordidx,
-                                                            newcoords[center==f[i]&connected==nxt[i]]$newcoordidx))}))
-}
-
-# done!
-trunc_xx <- setPoly(coords = as.matrix(newcoords[,1:3]),
-        faces = c(newfaces$coords, oldfaces), name="truncate2")
-clear3d()
-drawSinglePoly(trunc_xx, debug = T)
-
