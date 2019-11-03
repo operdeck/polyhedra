@@ -32,19 +32,17 @@ rgl_init <- function(new.device = FALSE, bg = "white", width = 640, height = wid
 # the rgl method is not reliable so still doing it myself
 drawPolygonTriangulate <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0))
 {
-  center <- apply(coords[face,], 2, mean)
-  for (t in seq(length(face))) {
-    p1 <- face[t]
-    p2 <- shiftrotate(face)[t]
+  if (length(face) < 3) stop("Face to triangulate should have >= 3 points.")
+
+  for (t in (seq(length(face)-2)+1)) {
+    triangle <- coords[c(face[1], face[t], face[t+1]),]
     # NB not sure about the orientation of the triangle - may have to check on this
-    triangles3d( offset[1] + c(coords[c(p1,p2),1], center[1]),
-                 offset[2] + c(coords[c(p1,p2),2], center[2]),
-                 offset[3] + c(coords[c(p1,p2),3], center[3]),
+    triangles3d( offset[1] + triangle[,1],
+                 offset[2] + triangle[,2],
+                 offset[3] + triangle[,3],
                  col=col, alpha=alpha)
   }
-
 }
-
 
 # Draws a star polygon with intersecting edges
 
@@ -163,16 +161,21 @@ drawAxes <- function()
   texts3d(c(2,0,0), c(0,2,0), c(0,0,2), text = c("x","y","z"), color="black")
 }
 
-drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), label=NULL, drawlines=F)
+drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), label=NULL, drawlines=F, drawvertices=F)
 {
+  spacing <- 0.1
   center <- apply(coords[face,], 2, mean)
   if (drawlines) {
     lines3d(coords[c(face, face[1]),1] + offset[1],
             coords[c(face, face[1]),2] + offset[2],
             coords[c(face, face[1]),3] + offset[3], color="orange")
   }
+  if (drawvertices) {
+    spheres3d(offset[1] + coords[face,1], offset[2] + coords[face,2], offset[3] + coords[face,3], color="green", radius = 0.02)
+    text3d(offset[1] + (1+spacing)*coords[face,1], offset[2] + (1+spacing)*coords[face,2], offset[3] + (1+spacing)*coords[face,3], text = face, color="blue")
+  }
   if (!is.null(label)) {
-    text3d(offset[1] + center[1], offset[2] + center[2], offset[3] + center[3], text = label, color="black")
+    text3d(offset[1] + (1+spacing)*center[1], offset[2] + (1+spacing)*center[2], offset[3] + (1+spacing)*center[3], text = label, color="black")
   }
   
   # NB face orientation is not normalized

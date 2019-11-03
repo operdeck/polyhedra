@@ -114,7 +114,7 @@ setPoly <- function(coords, faces, name, debug=F)
       }
     }
   }
-
+  
   newPoly <- list(coords=coords, faces=faces, name=name)
   t <- topology(newPoly)
   for (x in names(t)) {
@@ -274,48 +274,48 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
 # TODO lin alg to find new points is not ok yet
 # TODO make use of topology
 # truncate(quasi(cube)) errors out but should give something even if not regular
-truncate <- function(p, name = paste("truncate", p$name), debug=F)
-{
-  # every vertex becomes a new face with all new points
-  allPoints <- NULL
-  allFaces <- list()
-  for (v in p$vertexFigures) {
-    # create new points close to vertex center C in direction of the connected points P
-    # new point = C + alpha*(PC)
-    angles <- innerAngles(p$coords[v$vex,], center=p$coords[v$center,])
-    # find alpha such that the sides of the newly created faces are equal
-    alpha <- 0.5 - 0.5*(sin(angles/2)/(1+sin(angles/2))) # not trivial but easily derived
-    
-    newPoints <- p$coords[v$vex,]*alpha + (1-alpha)*data.table(x=rep(p$coords[v$center,1], length(v$vex)), 
-                                                               y=rep(p$coords[v$center,2], length(v$vex)),
-                                                               z=rep(p$coords[v$center,3], length(v$vex)))
-    newPoints$from <- v$center
-    newPoints$to <- v$vex
-    if (is.null(allPoints)) {
-      allPoints <- newPoints
-    } else {
-      allPoints <- rbind(allPoints, newPoints)
-    }
-    allFaces[[v$center]] <- (nrow(allPoints)-nrow(newPoints)+1):nrow(allPoints)
-  }
-  # now transform the old faces
-  newPointsLookup <- matrix(data = NA, nrow = nrow(allPoints), ncol = nrow(allPoints)) # sparse?
-  for (i in seq(nrow(allPoints))) {
-    # TODO maybe check for inconsistency if there's a value already
-    newPointsLookup[allPoints$from[i], allPoints$to[i]] <- i
-  }
-  for (f in p$faces)
-  {
-    truncatebedFace <- as.vector(sapply(seq(length(f)), function(idx) {
-      return(c(newPointsLookup[f[idx], shiftrotate(f)[idx]], 
-               newPointsLookup[shiftrotate(f)[idx], f[idx]]))}))
-    allFaces[[length(allFaces)+1]] <- truncatebedFace
-  }
-  
-  pTruncate <- setPoly(coords = allPoints[,1:3], faces = allFaces, name=name, debug)
-  
-  return(pTruncate)
-}
+# truncate <- function(p, name = paste("truncate", p$name), debug=F)
+# {
+#   # every vertex becomes a new face with all new points
+#   allPoints <- NULL
+#   allFaces <- list()
+#   for (v in p$vertexFigures) {
+#     # create new points close to vertex center C in direction of the connected points P
+#     # new point = C + alpha*(PC)
+#     angles <- innerAngles(p$coords[v$vex,], center=p$coords[v$center,])
+#     # find alpha such that the sides of the newly created faces are equal
+#     alpha <- 0.5 - 0.5*(sin(angles/2)/(1+sin(angles/2))) # not trivial but easily derived
+#     
+#     newPoints <- p$coords[v$vex,]*alpha + (1-alpha)*data.table(x=rep(p$coords[v$center,1], length(v$vex)), 
+#                                                                y=rep(p$coords[v$center,2], length(v$vex)),
+#                                                                z=rep(p$coords[v$center,3], length(v$vex)))
+#     newPoints$from <- v$center
+#     newPoints$to <- v$vex
+#     if (is.null(allPoints)) {
+#       allPoints <- newPoints
+#     } else {
+#       allPoints <- rbind(allPoints, newPoints)
+#     }
+#     allFaces[[v$center]] <- (nrow(allPoints)-nrow(newPoints)+1):nrow(allPoints)
+#   }
+#   # now transform the old faces
+#   newPointsLookup <- matrix(data = NA, nrow = nrow(allPoints), ncol = nrow(allPoints)) # sparse?
+#   for (i in seq(nrow(allPoints))) {
+#     # TODO maybe check for inconsistency if there's a value already
+#     newPointsLookup[allPoints$from[i], allPoints$to[i]] <- i
+#   }
+#   for (f in p$faces)
+#   {
+#     truncatebedFace <- as.vector(sapply(seq(length(f)), function(idx) {
+#       return(c(newPointsLookup[f[idx], shiftrotate(f)[idx]], 
+#                newPointsLookup[shiftrotate(f)[idx], f[idx]]))}))
+#     allFaces[[length(allFaces)+1]] <- truncatebedFace
+#   }
+#   
+#   pTruncate <- setPoly(coords = allPoints[,1:3], faces = allFaces, name=name, debug)
+#   
+#   return(pTruncate)
+# }
 
 # clear3d()
 # drawSinglePoly(truncate(cube), debug=T)
@@ -459,7 +459,7 @@ testDescription <- function()
 # drawPoly(p, debug=T)
 
 
-truncate <- function(p, name = paste("truncate2", p$name), debug=F)
+truncate <- function(p, name = paste("truncate", p$name), debug=F)
 {
   newpts <- list()
   for(v in p$vertexFigures) 
@@ -511,6 +511,6 @@ truncate <- function(p, name = paste("truncate2", p$name), debug=F)
   
   # done!
   trunc2 <- setPoly(coords = as.matrix(newcoords[,1:3]),
-                      faces = c(newfaces$coords, oldfaces), name=name, debug)
+                    faces = c(newfaces$coords, oldfaces), name=name, debug)
   return (trunc2)
 }

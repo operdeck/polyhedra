@@ -117,7 +117,7 @@ snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
 
 ![Combination of regular polyhedra with their duals](snapshots/regulars-with-duals.png)
 
-## Quasi transformation
+## Archimedean transformations
 
 ### Quasi Regular Archimedean solids
 
@@ -138,7 +138,7 @@ snapshot3d("snapshots/quasiarchimedeans.png", fmt = "png", top = TRUE )
 
 ![Quasi Archimedean solids](snapshots/quasiarchimedeans.png)
 
-## Truncate transformation
+### Truncate transformation
 
 Every vertex becomes a face like in the quasi transformation, but part of the original edges are kept, so in effect the original faces are doubled in number of sides.
 
@@ -157,6 +157,8 @@ snapshot3d("snapshots/truncatearchimedeans.png", fmt = "png", top = TRUE )
 
 ![Truncated regular solids](snapshots/truncatearchimedeans.png)
 
+Truncation can be applied on the star solids although the result is not always esthetically pleasing. It also results in overlapping faces so drawing only the two that don't have that problem.
+
 ```{r}
 truncatedstars <- lapply(KeplerPoinsots[c(1,3)], truncate)
 # the other 2 don't work / even cause an error
@@ -169,6 +171,26 @@ snapshot3d("snapshots/truncatedstars.png", fmt = "png", top = TRUE )
 ```
 
 ![Truncated Kepler Poinsots](snapshots/truncatedstars.png)
+
+
+### Irregular results
+
+Applying the transformations repeatedly on on non-regular solids to start with sometimes results in nice looking solids but often with irregular faces, and sometimes even non-flat faces.
+
+```{r}
+irregulars <- list( truncate(truncate(truncate(dodecahedron))),
+                    quasi(quasi(truncate(octahedron))),
+                    quasi(truncate(greatIcosahedron)),
+                    truncate(quasi(dodecahedron)) )
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(irregulars, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Some irregular solids")
+snapshot3d("snapshots/irregulars.png", fmt = "png", top = TRUE )
+```
+
+![Some irregular solids](snapshots/irregulars.png)
 
 # Various stellations
 

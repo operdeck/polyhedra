@@ -112,9 +112,6 @@ clear3d()
 # movie3d(spin3d(axis = c(1, 1, 1)), duration = 3, dir = getwd())
 
 
-rgl_init()
-clear3d()
-drawPoly(p, debug=T)
 # orientation is clockwise when looking at face
 
 # Dual is now very easy
