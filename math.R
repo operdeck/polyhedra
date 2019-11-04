@@ -51,6 +51,7 @@ normalizedistances <- function(coords) # this already works on matrices
   return (coords/apply(coords, 1, vectorlength))
 }
 
+# works for matrices too
 normal <- function(p1, p2, p3)
 {
   n <- crossproduct(p2-p1, p3-p1)
@@ -61,7 +62,7 @@ distance <- function(a, b = apply(a,2,mean))
 {
   if (is.matrix(a)) {
     if (is.matrix(b)) {
-      return (sqrt(sum((a-b)^2))) # both are a matrix
+      return (sqrt(rowSums((a-b)^2))) # both are a matrix
     } else {
       return (sqrt(rowSums((matrix(rep(b,nrow(a)),nrow=nrow(a),byrow=T) - a)^2)))
     }

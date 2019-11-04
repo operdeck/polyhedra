@@ -17,6 +17,12 @@ rgl_init <- function(new.device = FALSE, bg = "white", width = 640, height = wid
   rgl.viewpoint(theta = 15, phi = 20, zoom = 0.7)
 }
 
+polyLines <- function(coords, ...)
+{
+  if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
+  lines3d(coords[,1], coords[,2], coords[,3], ...)
+}
+
 
 #open3d()
 #shade3d( icosahedron3d() )
