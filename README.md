@@ -2,7 +2,7 @@
 
 R tools to create various polyhedra from ground principles.
 
-![Compounds](/snapshots/compound5octahedra.png)
+![Compounds](snapshots/compound5octahedra.png)
 
 Only the coordinates of the very basic polyhedra are given (tetrahedron, octahedron, icosahedron). The topology of those is not given but "discovered" by the tool. Other polyhedra are created as derived from these. E.g. the dodecahedron is created as
 
@@ -29,17 +29,17 @@ greatIcosahedron <- buildRegularPoly(icosahedron$coords,
 greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", scaling = "vertex")
 ```
 
-![Kepler Poinsots](/snapshots/keplerpoinsots.png)
+![Kepler Poinsots](snapshots/keplerpoinsots.png)
 
 Basic descriptions of the polyhedra (according to Coxeter) are also generated along with the polyhedra.
 
-Next to "dual", several other transformations like "snub" and "rhombic" are available too, allowing to create a lot of different polyhedra
+Next to "dual", several other transformations like "truncate" and "rhombic" are available too, allowing to create a lot of different polyhedra
 
-![Transformations](/snapshots/rhombicarchimedeans.png)
+![Transformations](snapshots/rhombicregulars.png)
 
 There also is a full discovery mode, where you only give a set of coordinates (from one of the other polyhedra) then it "discovers" a family of polyhedra sharing those vertex coordinates.
 
-![Dodecahedron discoveries](/snapshots/dodecahedron_discoveries.png)
+![Dodecahedron discoveries](snapshots/dodecahedron_discoveries.png)
 
 The above is not a full list. Run the R notebook to create a more complete list.
 

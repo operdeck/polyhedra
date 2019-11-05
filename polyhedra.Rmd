@@ -172,6 +172,27 @@ snapshot3d("snapshots/truncatedstars.png", fmt = "png", top = TRUE )
 
 ![Truncated Kepler Poinsots](snapshots/truncatedstars.png)
 
+### Rhombic transformation
+
+A more complex transformation that basically lifts edges to become new, square, faces. Existing
+faces remain but are lifted too. Vertices are turned into new faces to fill the gaps between the
+new squares and the existing faces.
+
+The transformation is symmetric also.
+
+```{r}
+rhombicregulars <- lapply(c(Platonics[seq(length(Platonics))%%2==1], 
+                            list(greatDodecahedron, greatIcosahedron)), rhombic)
+# NB rhombic(smallStellatedDodecahedron) fails currently
+```
+
+```{r, include=F}
+clear3d()
+drawPoly(rhombicregulars, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Rhombic transformation")
+snapshot3d("snapshots/rhombicregulars.png", fmt = "png", top = TRUE )
+```
+
+![Truncated regular solids](snapshots/truncatearchimedeans.png)
 
 ### Irregular results
 

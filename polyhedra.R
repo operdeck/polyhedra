@@ -224,7 +224,8 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
   return(pDual)
 }
 
-# Create an derived polyhedron by truncating all coords to the mid of the faces
+# Create new faces at the vertices of the old solid effectively
+# keeping existing faces but rotating them
 quasi <- function(p, name=paste("quasi", p$name), debug=F)
 {
   # new points are midpoints of all edges ; the index of each edge is obtained using lookup in the coordPairToEdge matrix
@@ -243,6 +244,155 @@ quasi <- function(p, name=paste("quasi", p$name), debug=F)
   return(pArchi)
 }
 
+# creates new faces at the vertices of the old solid, changing 
+# existing faces to have twice as many points
+truncate <- function(p, name = paste("truncate", p$name), debug=F)
+{
+  newpts <- list()
+  for(v in p$vertexFigures) 
+  {
+    if(debug){
+      text3d( x=p$coords[v$center,1], 
+              y=p$coords[v$center,2], 
+              z=p$coords[v$center,3], color="red", texts = v$center)
+      for (p in v$vex) 
+      {
+        lines3d( x=p$coords[c(v$center, p),1], 
+                 y=p$coords[c(v$center, p),2], 
+                 z=p$coords[c(v$center, p),3], color="blue")
+        text3d( x=p$coords[p,1], 
+                y=p$coords[p,2], 
+                z=p$coords[p,3], color="red", texts = p)
+      }
+    }
+    # new point from center of vertex figure is on line to connected point at relative distance alpha
+    alpha <- sapply(seq(length(v$vex)), 
+                    function(i) {return(1/(2+vectorlength(p$coords[v$vex[i],]-p$coords[shiftrotate(v$vex)[i],])/
+                                             vectorlength(p$coords[v$vex[i],]-p$coords[v$center,])))})
+    newpts[[v$center]] <- as.data.table(t(sapply(seq(length(v$vex)),
+                                                 function(i) {return((1-alpha[i])*p$coords[v$center,] + alpha[i]*p$coords[v$vex[i], ])})))
+    newpts[[v$center]]$center <- v$center
+    newpts[[v$center]]$connected <- v$vex
+    if (debug) {
+      text3d( x=newpts[[v$center]]$x, 
+              y=newpts[[v$center]]$y, 
+              z=newpts[[v$center]]$z, color="darkgreen", texts = newpts[[v$center]]$connected)
+    }
+  }
+  
+  newcoords <- rbindlist(newpts)
+  newcoords[,newcoordidx := seq(.N)]
+  
+  # the new faces at the old vertices
+  newfaces <- newcoords[, .( connected = list(connected), coords = list(newcoordidx)) , by=center]
+  
+  # the old faces require some careful indexing
+  oldfaces <- list()
+  for (f in p$faces) {
+    prv <- shiftrotate(f,-1)
+    nxt <- shiftrotate(f)
+    oldfaces[[1+length(oldfaces)]] <- 
+      as.numeric(sapply(seq(length(f)), function(i) {return(c(newcoords[center==f[i]&connected==prv[i]]$newcoordidx,
+                                                              newcoords[center==f[i]&connected==nxt[i]]$newcoordidx))}))
+  }
+  
+  # done!
+  trunc2 <- setPoly(coords = as.matrix(newcoords[,1:3]),
+                    faces = c(newfaces$coords, oldfaces), name=name, debug)
+  return (trunc2)
+}
+
+# Edges become squares, existing faces stay but are elevated, and
+# vertices become new faces
+# TODO: rhombic(smallStellatedDodecahedron) fails!
+rhombic <- function(p, name=paste("rhombic", p$name), debug=F)
+{
+  # construct new coordinates from the edges of the current solid
+  newFace <- list()
+  for (e in seq(nrow(p$edgeToFaces))) {
+    if (debug) print(e)
+    F1 <- p$edgeToFaces[e,1]
+    F2 <- p$edgeToFaces[e,2]
+    pts <- ((which(e == p$coordPairToEdge) - 1) %% ncol(p$coordPairToEdge))+1
+    P1 <- pts[1]
+    P2 <- pts[2]
+    
+    if (debug) {
+      drawPolygon(p$faces[[F1]], p$coords, drawlines = T, drawvertices = T, label=paste0("F",F1))
+      drawPolygon(p$faces[[F2]], p$coords, drawlines = T, drawvertices = T, label=paste0("F",F2))
+    }
+    
+    n1 <- normal(p$coords[p$faces[[F1]][1],],
+                 p$coords[p$faces[[F1]][2],],
+                 p$coords[p$faces[[F1]][3],])
+    
+    n2 <- normal(p$coords[p$faces[[F2]][1],],
+                 p$coords[p$faces[[F2]][2],],
+                 p$coords[p$faces[[F2]][3],])
+    
+    if (debug) {
+      center1 <- apply(p$coords[p$faces[[F1]],], 2, mean)
+      center2 <- apply(p$coords[p$faces[[F2]],], 2, mean)
+      polyLines(c(center1, center1+n1), color = "red")
+      polyLines(c(center2, center2+n2), color = "red")
+    }
+    
+    dp1p2 <- distance(p$coords[P1,], p$coords[P2,])
+    dn1n2 <- distance(n1, n2)
+    alpha <- dp1p2/dn1n2
+    
+    p1_a <- p$coords[P1,] + alpha*n1
+    p1_b <- p$coords[P1,] + alpha*n2
+    p2_a <- p$coords[P2,] + alpha*n2
+    p2_b <- p$coords[P2,] + alpha*n1
+    
+    if (debug) {
+      polyLines(c(p1_a, p1_b, p2_a, p2_b, p1_a), color="green")
+    }
+    
+    newFace[[1+length(newFace)]] <- 
+      data.table(x=c(p1_a[1], p1_b[1], p2_a[1], p2_b[1]),
+                 y=c(p1_a[2], p1_b[2], p2_a[2], p2_b[2]),
+                 z=c(p1_a[3], p1_b[3], p2_a[3], p2_b[3]),
+                 edge=e,
+                 frompoint=c(P1, P1, P2, P2), 
+                 fromface=c(F1, F2, F2, F1))
+  }
+  
+  nc <- rbindlist(newFace) # but: contains duplicate coordinates
+  nc[, idx := seq(.N)]
+  nc[, idx := idx[1], by=c("fromface","frompoint")]
+  nc[, idx := as.integer(factor(idx))] # same coordinates now have same index
+  
+  # faces from the edges
+  squaresFromEdges <- nc[,.(f = list(idx)),by=edge]
+  
+  # de-duplicated coordinates
+  newCoords <- as.matrix( nc[, .(x = x[1], y = y[1], z = z[1]), by=idx][order(idx)][, 2:4] )
+  
+  # find new coords for existing faces
+  newTopo <- unique(nc[, c("frompoint","fromface","idx")])
+  
+  # construct new faces mostly by lookup
+  facesFromOldFaces <-
+    lapply(seq(length(p$faces)), 
+           function(oldFace) {
+             return(sapply(p$faces[[oldFace]], 
+                           function(i) { return(newTopo[fromface==oldFace & frompoint==i]$idx)}))})
+  
+  facesFromOldVertices <-
+    lapply(seq(length(p$vertexFigures)),
+           function(oldVertex) { 
+             v <- p$vertexFigures[[oldVertex]]
+             return(sapply(v$faces, function(i) {return(newTopo[fromface==i & frompoint==v$center]$idx)}))})
+  
+  newRhombic <-
+    setPoly(coords = newCoords/max(vectorlength(newCoords)), # unit length
+            faces = c(squaresFromEdges$f, facesFromOldFaces, facesFromOldVertices),
+            name = name, debug)
+  
+  return(newRhombic)
+}
 
 # Combine two polyhedra into one
 compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",")), debug=F)
@@ -446,6 +596,20 @@ testDescription <- function()
   sapply(lapply(Regulars, dual), description)
 }
 
+testRhombic <- function()
+{
+  p <- dodecahedron
+  p <-greatDodecahedron
+  p <- icosahedron
+  clear3d()
+  drawPoly(p, debug = T)
+  
+  rgl_init(new.device = T)
+  clear3d()
+  drawAxes()
+  r <- rhombic(p, debug=F)
+  drawPoly(r)
+}
 # p <- octahedron #smallStellatedDodecahedron
 # f <- p$faces[[1]]
 # innerAngles(p$coords[f,])*360/2/pi
@@ -459,58 +623,3 @@ testDescription <- function()
 # drawPoly(p, debug=T)
 
 
-truncate <- function(p, name = paste("truncate", p$name), debug=F)
-{
-  newpts <- list()
-  for(v in p$vertexFigures) 
-  {
-    if(debug){
-      text3d( x=p$coords[v$center,1], 
-              y=p$coords[v$center,2], 
-              z=p$coords[v$center,3], color="red", texts = v$center)
-      for (p in v$vex) 
-      {
-        lines3d( x=p$coords[c(v$center, p),1], 
-                 y=p$coords[c(v$center, p),2], 
-                 z=p$coords[c(v$center, p),3], color="blue")
-        text3d( x=p$coords[p,1], 
-                y=p$coords[p,2], 
-                z=p$coords[p,3], color="red", texts = p)
-      }
-    }
-    # new point from center of vertex figure is on line to connected point at relative distance alpha
-    alpha <- sapply(seq(length(v$vex)), 
-                    function(i) {return(1/(2+vectorlength(p$coords[v$vex[i],]-p$coords[shiftrotate(v$vex)[i],])/
-                                             vectorlength(p$coords[v$vex[i],]-p$coords[v$center,])))})
-    newpts[[v$center]] <- as.data.table(t(sapply(seq(length(v$vex)),
-                                                 function(i) {return((1-alpha[i])*p$coords[v$center,] + alpha[i]*p$coords[v$vex[i], ])})))
-    newpts[[v$center]]$center <- v$center
-    newpts[[v$center]]$connected <- v$vex
-    if (debug) {
-      text3d( x=newpts[[v$center]]$x, 
-              y=newpts[[v$center]]$y, 
-              z=newpts[[v$center]]$z, color="darkgreen", texts = newpts[[v$center]]$connected)
-    }
-  }
-  
-  newcoords <- rbindlist(newpts)
-  newcoords[,newcoordidx := seq(.N)]
-  
-  # the new faces at the old vertices
-  newfaces <- newcoords[, .( connected = list(connected), coords = list(newcoordidx)) , by=center]
-  
-  # the old faces require some careful indexing
-  oldfaces <- list()
-  for (f in p$faces) {
-    prv <- shiftrotate(f,-1)
-    nxt <- shiftrotate(f)
-    oldfaces[[1+length(oldfaces)]] <- 
-      as.numeric(sapply(seq(length(f)), function(i) {return(c(newcoords[center==f[i]&connected==prv[i]]$newcoordidx,
-                                                              newcoords[center==f[i]&connected==nxt[i]]$newcoordidx))}))
-  }
-  
-  # done!
-  trunc2 <- setPoly(coords = as.matrix(newcoords[,1:3]),
-                    faces = c(newfaces$coords, oldfaces), name=name, debug)
-  return (trunc2)
-}
