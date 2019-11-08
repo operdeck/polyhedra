@@ -207,6 +207,36 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
   
 }
 
+# returns an array of colors that can be indexed by face number
+assignColors <- function(p)
+{
+  if (length(p$bodies) > 1) {
+    bodyColors <- rainbow(length(p$bodies))
+  }
+  faceType <- as.integer(factor(sapply(p$faces, length))) # faces considered same just by nr of edges (TODO!!)
+  if (max(faceType) > 1) {
+    faceTypeColors <- rainbow(max(faceType))  
+  }
+
+  colors <- sapply(seq(length(p$faces)), function(f) {
+    if (length(p$bodies) > 1) {
+      # multiple bodies - color each body the same
+      faceColor <- bodyColors[which(sapply(p$bodies, function(b) { return(f %in% b)}))]
+    } else {
+      if (max(faceType) > 1) {
+        # one body but multiple types of faces - each face type a color
+        faceColor <- faceTypeColors[faceType[f]]
+      } else {
+        # one body, one face type - rainbow
+        faceColor <- rainbow(length(p$faces))[f]
+      }
+    }
+    return(faceColor)
+  })    
+  
+  return(colors)
+}
+
 # Draw a single polygon. Offset is optional.
 drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$name), debug=F)
 {
@@ -241,25 +271,9 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
     text3d(x, y + min(p$coords[,2]) - 1, z, text = label, color = "black", cex=0.7, pos = 1)
   }
   if (length(p$faces) > 0) { 
-    if (length(p$bodies) > 1) {
-      bodyColors <- rainbow(length(p$bodies))
-    }
-    faceType <- as.integer(factor(sapply(p$faces, length))) # faces considered same just by nr of edges
-    if (max(faceType) > 1) {
-      faceTypeColors <- rainbow(max(faceType))  
-    }
+    colors <- assignColors(p)
     for (f in seq(length(p$faces))) {
-      if (length(p$bodies) > 1) {
-        faceColor <- bodyColors[which(sapply(p$bodies, function(b) { return(f %in% b)}))]
-      } else {
-        if (max(faceType) > 1) {
-          faceColor <- faceTypeColors[faceType[f]]
-        } else {
-          faceColor <- rainbow(length(p$faces))[f]
-        }
-      }
-      
-      drawPolygon(p$faces[[f]], p$coords, faceColor, alpha, c(x, y, z), label=ifelse(debug,paste0("F",f),""), drawlines=debug) 
+      drawPolygon(p$faces[[f]], p$coords, colors[f], alpha, c(x, y, z), label=ifelse(debug,paste0("F",f),""), drawlines=debug) 
     }
   }
 }
@@ -276,7 +290,6 @@ drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debu
   }
 }
 # rgl.close()
-
 
 # draw a n/d polygon
 testDrawPolygon <- function(n, d=1, label="")

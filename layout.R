@@ -1,27 +1,39 @@
 # automatic layout gen
 
+library(ggplot2)
+library(svglite)
+
 source("polyhedra.R")
 source("draw.R")
 
-cube <- dual(octahedron, name = "Cube")
-dodecahedron <- dual(icosahedron, name = "Dodecahedron")
-
-xx <- quasi(cube)
-xx <- rhombic(dodecahedron)
-xx <- tetrahedron
-clear3d()
-drawPoly(xx, debug=T)
-
 # draw 2D face
-drawFace2D <- function(face2d, ...)
+## TODO reasonably obsolete now that the layout is plotted w ggplot
+drawFace2D <- function(face2d, outline = TRUE, color = "green")
 {
-  #points3d(x = face2d$coords2D[,1], y = face2d$coords2D[,2], z = 0, color="black" )
-  text3d(x = face2d$coords2D[,1], y = face2d$coords2D[,2], z = 0, 
-         text=face2d$points3D, color="black", cex=0.5 )
-  lines3d(x = face2d$coords2D[,1][c(seq(nrow(face2d$coords2D)),1)], 
-          y = face2d$coords2D[,2][c(seq(nrow(face2d$coords2D)),1)], z = 0, ...)
-  center <- apply(face2d$coords2D, 2, mean)
-  text3d(x = center[1], y = center[2], z = 0, text=paste0("F",face2d$face), color="blue", cex=0.5 )
+  if (outline) {
+    #points3d(x = face2d$coords2D[,1], y = face2d$coords2D[,2], z = 0, color="black" )
+    text3d(x = face2d$coords2D[,1], y = face2d$coords2D[,2], z = 0, 
+           text=face2d$points3D, color="black", cex=0.5 )
+    # if (!is.null(edges)) {
+    #   text3d(x = (face2d$coords2D[,1] + face2d$coords2D[shiftrotate(seq(nrow(face2d$coords2D))),1])/2, 
+    #          y = (face2d$coords2D[,2] + face2d$coords2D[shiftrotate(seq(nrow(face2d$coords2D))),2])/2, z = 0, 
+    #          text=edges, color="black", cex=0.7 )
+    #   
+    # }
+    lines3d(x = face2d$coords2D[,1][c(seq(nrow(face2d$coords2D)),1)], 
+            y = face2d$coords2D[,2][c(seq(nrow(face2d$coords2D)),1)], z = 0, color = color)
+    center <- apply(face2d$coords2D, 2, mean)
+    text3d(x = center[1], y = center[2], z = 0, text=paste0("F",face2d$face), color="blue", cex=0.5 )
+  } else {
+    if (nrow(face2d$coords2D) < 3) stop("Face to triangulate should have >= 3 points.")
+    
+    for (t in (seq(nrow(face2d$coords2D)-2)+1)) {
+      triangle <- face2d$coords2D[c(1, t, t+1),]
+      triangles3d( triangle[,1], triangle[,2], 0, col=color)
+    }
+    lines3d(x = face2d$coords2D[,1][c(seq(nrow(face2d$coords2D)),1)], 
+            y = face2d$coords2D[,2][c(seq(nrow(face2d$coords2D)),1)], z = 0, color = "black")
+  }
 }
 
 # evaluate size of layout
@@ -51,7 +63,7 @@ projectFace <- function(poly, faceno)
 }
 
 # put a new face into position, given a global 2D layout
-positionNextFace <- function(polyhedron3D, edge, placedFaces) 
+positionNextFace <- function(polyhedron3D, edge, placedFaces, level, trace=T) 
 {
   if (polyhedron3D$edgeToFaces[edge,1] %in% placedFaces) {
     placedFaceIdx <- polyhedron3D$edgeToFaces[edge,1]
@@ -61,15 +73,14 @@ positionNextFace <- function(polyhedron3D, edge, placedFaces)
     placedFaceIdx <- polyhedron3D$edgeToFaces[edge,2]
   }
   vertices <- ((which(polyhedron3D$coordPairToEdge==edge)-1) %/% nrow(polyhedron3D$coordPairToEdge))+1
-  cat("Placed:", placedFaceIdx, ", adding:", newFaceIdx, fill = T)
-  cat("vertices:", paste(vertices, collapse=","), fill=T)
+  if (trace) {cat(paste0(rep(" ", level),collapse=""), "finding next face for edge", edge, "and existing face", placedFaceIdx, ": adding face", newFaceIdx, "with shared vertices:", paste(vertices, collapse=","), fill = T)}
   
   # place the to be added face on 2D plane
   face2D <- projectFace(polyhedron3D, newFaceIdx)
-  drawFace2D(face2D, color="green")
+  #drawFace2D(face2D, color="green")
   
   # lookup the one that is placed already
-  currentFace2D <- layout[[which(sapply(layout, function(x){return(x$face)})==placedFaceIdx)]]
+  currentFace2D <- layout[[which(sapply(layout[1:level], function(x){return(x$face)})==placedFaceIdx)]]
   
   # identify the vertices of the edge in both faces
   if (length(vertices) != 2) stop("An edge must have 2 vertices")
@@ -95,78 +106,209 @@ positionNextFace <- function(polyhedron3D, edge, placedFaces)
   return(face2D)
 }
 
-bestResult <- -Inf
-stop()
-
-##### todo refactor until clean then make recursive
-
-# for layout use a new device
-rgl_init(new.device = T)
-clear3d()
-drawAxes()
-
-# Start with a layout with just the first face
-layout <- list()
-
-# Place first face on 2D plane - does not matter where we start
-face2D <- projectFace(xx, 1) # just to put off the algo - set to 1 later again
-
-
-# repeat from here
-repeat {
+drawLayout <- function(level, outline=T, original)
+{
+  colors <- assignColors(original)
   
-  # place face2D at this level which will become another function argument
-  layout[[1+length(layout)]] <- face2D
-  drawFace2D(face2D, color="red")
-  level <- length(layout) # prep for search version, this will become a function argument (?)
+  layout2D <- rbindlist(lapply(layout, function(l) {
+    data.table(x=l$coords2D[,1], y=l$coords2D[,2], face=l$face, color=colors[l$face])
+  }))
+  colorMapIdentity <- unique(colors)
+  names(colorMapIdentity) <- colorMapIdentity
+  p <-ggplot(layout2D, aes(x,y)) + 
+    geom_polygon(aes(fill = color, group = face), color="black", size=0.1, show.legend = FALSE) +
+    scale_fill_manual(values = colorMapIdentity)+
+    scale_x_continuous(limits = c(min(layout[[level]]$minCoords), max(layout[[level]]$maxCoords)))+
+    scale_y_continuous(limits = c(min(layout[[level]]$minCoords), max(layout[[level]]$maxCoords)))+
+    theme_void()+
+    ggtitle(paste("Layout of", original$name), 
+            subtitle = paste("round",ncalls,"eval=",round(bestEval,5),round(difftime(Sys.time(), startTime, units = "mins"),2),"mins"))
+  print(p)
+
+  ggsave(file=file.path("layouts",paste0("layout ", original$name, ".svg")), plot=p, width=10, height=10)
+  # 
+  # rgl_init(new.device = T)
+  # rgl.viewpoint(theta = 0, phi = 0, zoom = 1)
+  # for (l in layout[1:level]) { 
+  #   if (!is.null(colors)) {
+  #     drawFace2D(l, outline, colors[l$face])    
+  #   } else {
+  #     drawFace2D(l, outline) 
+  #   }
+  # }
+  # if (outline) {
+  #   lines3d( x = c(layout[[level]]$minCoords[1], layout[[level]]$maxCoords[1], layout[[level]]$maxCoords[1], layout[[level]]$minCoords[1], layout[[level]]$minCoords[1]),
+  #            y = c(layout[[level]]$minCoords[2], layout[[level]]$minCoords[2], layout[[level]]$maxCoords[2], layout[[level]]$maxCoords[2], layout[[level]]$minCoords[2]),
+  #            z = 0,
+  #            color="yellow")
+  # }
+}
+
+getLayoutDigest <- function(level, candidate=NULL)
+{
+  if (is.null(candidate)) {
+    digest <- paste(sort(sapply(layout[1:level], function(f) {return(f$sourceEdge)})),collapse="-")
+  } else {
+    digest <- paste(sort(c(sapply(layout[1:level], function(f) {return(f$sourceEdge)}),candidate)),collapse="-")
+  }
+  return(digest)
+}
+
+# Find the best 2D layout given global layout
+best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, face2D = projectFace(polyhedron3D, 1), sourceEdge = 0, maxrounds = 0)
+{
+  if (((ncalls+1) > maxrounds) & (maxrounds != 0)) {
+    return()
+  }
+  ncalls <<- ncalls+1
+  if (trace) {cat(paste0(rep(" ", level),collapse=""),"Entered level", level, "placed face:", face2D$face, fill = T)}
   
-  cat("Level", level, "placed face:", face2D$face, fill = T)
+  face2D$sourceEdge <- sourceEdge
+  layout[[level]] <<- face2D
+  allLayoutDigests[[1+length(allLayoutDigests)]] <<- getLayoutDigest(level)
   
   # update the list of available edges, and store it with the layout itself
   shiftFacePoints <- shiftrotate(face2D$points3D)
-  newEdges <- sapply(seq(length(face2D$points3D)), function(i) {return(xx$coordPairToEdge[face2D$points3D[i],shiftFacePoints[i]])})
+  newEdges <- sapply(seq(length(face2D$points3D)), function(i) {return(polyhedron3D$coordPairToEdge[face2D$points3D[i],shiftFacePoints[i]])})
   if (level > 1) {
-    layout[[level]]$candidateEdges <-
+    layout[[level]]$candidateEdges <<-
       setdiff(c(newEdges, layout[[level-1]]$candidateEdges), intersect(layout[[level-1]]$candidateEdges, newEdges))
   } else {
-    layout[[level]]$candidateEdges <- newEdges
+    layout[[level]]$candidateEdges <<- newEdges
   }
   
   # keep track of the layout min/max
   newMinCoords <- apply(face2D$coords2D,2,min)
   newMaxCoords <- apply(face2D$coords2D,2,max)
   if (level > 1) {
-    layout[[level]]$minCoords <- apply(matrix(c(newMinCoords, layout[[level-1]]$minCoords), ncol=2, byrow = T), 2, min)
-    layout[[level]]$maxCoords <- apply(matrix(c(newMaxCoords, layout[[level-1]]$maxCoords), ncol=2, byrow = T), 2, max)
+    layout[[level]]$minCoords <<- apply(matrix(c(newMinCoords, layout[[level-1]]$minCoords), ncol=2, byrow = T), 2, min)
+    layout[[level]]$maxCoords <<- apply(matrix(c(newMaxCoords, layout[[level-1]]$maxCoords), ncol=2, byrow = T), 2, max)
   } else {
-    layout[[level]]$minCoords <- newMinCoords
-    layout[[level]]$maxCoords <- newMaxCoords
+    layout[[level]]$minCoords <<- newMinCoords
+    layout[[level]]$maxCoords <<- newMaxCoords
   }
-  lines3d( x = c(layout[[level]]$minCoords[1], layout[[level]]$maxCoords[1], layout[[level]]$maxCoords[1], layout[[level]]$minCoords[1], layout[[level]]$minCoords[1]),
-           y = c(layout[[level]]$minCoords[2], layout[[level]]$minCoords[2], layout[[level]]$maxCoords[2], layout[[level]]$maxCoords[2], layout[[level]]$minCoords[2]),
-           z = 0,
-           color="yellow")
+  
+  if (evaluator(level) > bestEval) {
+    if (trace) {cat(paste0(rep(" ", level),collapse=""),"*** early exit **** at level", level,"eval=", evaluator(level), "but best is", bestEval, fill = T)}
+    nevalskips <<- nevalskips+1
+    return()
+  }
   
   # get list of all faces placed
   placedFaces <- sapply(layout[1:level], function(f) {return(f$face)})
   
-  # check if we're done
-  if (length(layout[[level]]$candidateEdges) == 0) {
-    # Done! (or perhaps need to place unconnected face)
-    # Evaluate it here
-    break
+  if (level == 1) {
+    # for first level don't go through all the edges
+    candidates <- layout[[level]]$candidateEdges[1]
+  } else {
+    candidates <- layout[[level]]$candidateEdges
+  }
+  if (length(candidates) == 0) {
+    if (evaluator(level) < bestEval & !deltaEquals(evaluator(level), bestEval)) {
+      bestEval <<- evaluator(level)
+      bestDigest <<- getLayoutDigest(level)
+      if (trace) {cat(paste0(rep(" ", level),collapse=""),"Done with better evaluation! At level", level, "eval=", evaluator(level), fill = T)  }
+      if (!trace) {cat("Found layout, round",ncalls,"eval=",round(bestEval,5),round(difftime(Sys.time(), startTime, units = "mins"),5),"mins", fill = T)  }
+      drawLayout(level, outline=F, original = polyhedron3D)
+    } else {
+      if (trace) {cat(paste0(rep(" ", level),collapse=""),"Done but no improvement. At level", level, "eval=", evaluator(level), fill = T)  }
+    }
+  } else {
+    candidates <- candidates[sample.int(length(candidates))] # shuffle to speed up search
+    
+    # first find the 2D faces
+    candidateFaces <- list()
+    for (edge in candidates) {
+      layoutDigest <- getLayoutDigest(level, edge)
+      if (layoutDigest %in% allLayoutDigests) {
+        if (trace) {cat(paste0(rep(" ", level),collapse=""),"*** skip processing edge", edge, " **** at level", level,"layout done already:", layoutDigest, fill = T)}
+        ndigestskips <<- ndigestskips+1
+        next
+      }
+
+      if (trace) {cat(paste0(rep(" ", level),collapse=""),"select edge:", edge, "from", candidates, fill = T)}
+      
+      # place it into position
+      newFace2D <- positionNextFace(polyhedron3D, edge, placedFaces, level, trace) 
+      candidateFaces[[1+length(candidateFaces)]] <- list(edge=edge, face=newFace2D)
+    }
+    
+    # then order them by (early) evaluation
+    if (length(candidateFaces) > 0) {
+      for (c in seq(length(candidateFaces))) {
+        candidateMinCoords <- apply(candidateFaces[[c]]$face$coords2D,2,min)
+        candidateMaxCoords <- apply(candidateFaces[[c]]$face$coords2D,2,max)
+        
+        currentLayoutWithCandidateMin <- apply(matrix(c(candidateMinCoords, layout[[level]]$minCoords), ncol=2, byrow = T), 2, min)
+        currentLayoutWithCandidateMax <- apply(matrix(c(candidateMaxCoords, layout[[level]]$maxCoords), ncol=2, byrow = T), 2, max)
+        
+        candidateFaces[[c]]$eval <- evaluator(level, currentLayoutWithCandidateMin, currentLayoutWithCandidateMax)
+      }
+      candidateOrder <- order(sapply(candidateFaces,function(x){return(x$eval)}))
+      
+      # then recurse, starting with the one with smallest local eval result
+      for (c in candidateOrder) {
+        best2DLayout(polyhedron3D, level+1, evaluator, trace=trace, candidateFaces[[c]]$face, candidateFaces[[c]]$edge, maxrounds = maxrounds)
+      }
+    }
   }
   
-  # this will become a loop over all candidates
-  edge <- rev(layout[[level]]$candidateEdges)[1] # TODO iterate/recurse here and fail if there are none
-  
-  # place it into position, given the current layout (this involves a lot of linear algebra)
-  face2D <- positionNextFace(xx, edge, placedFaces) 
-  
-  #
-  # now recurse, calling yourself with (newFace2D)
-  # 
+  if (trace) {cat(paste0(rep(" ", level),collapse=""),"Returning from level", level, fill = T)}
 }
 
-evalLayout(layout)
+layoutAreaEvaluator <- function(level, min=layout[[level]]$minCoords, max=layout[[level]]$maxCoords)
+{
+  # area - the smaller the better
+  rslt <- ((max[1]-min[1])*(max[2]-min[2]))
+  # # prefer horizontal by penalizing vertical orientation 
+  # if ((max[2]-min[2]) > (max[1]-min[1])) rslt <- rslt*(1+1/(4*level))
+  # this really slows down convergence - better swap at the end
+  return(rslt)
+}
+
+layoutSquarenessEvaluator <- function(level, min=layout[[level]]$minCoords, max=layout[[level]]$maxCoords)
+{
+  # abs diff x y - the closer the better
+  return (abs((max[1]-min[1]) - (max[2]-min[2])))
+}
+
+########
+
+cube <- dual(octahedron, name = "Cube")
+dodecahedron <- dual(icosahedron, name = "Dodecahedron")
+
+xx <- dual(icosahedron)
+xx <- rhombic(dodecahedron)
+xx <- tetrahedron
+xx <- dodecahedron
+xx <- rhombic(cube)
+xx <- truncate(icosahedron)
+xx <- quasi(cube)
+#clear3d()
+#drawPoly(xx, debug=T)
+
+# for layout use a new device
+# rgl_init(new.device = T)
+# clear3d()
+# drawAxes()
+
+# Start with a layout with just the first face
+layout <- list()
+allLayoutDigests <- list()
+bestEval <- Inf
+bestDigest <- ""
+ncalls <- 0
+nevalskips <- 0
+ndigestskips <- 0
+startTime <- Sys.time()
+
+best2DLayout(xx, evaluator = layoutAreaEvaluator, trace=F, maxrounds=5000)
+
+endTime <- Sys.time()
+cat("#calls:", ncalls, fill=T)
+cat("#early skips because of repeated layout", ndigestskips, fill=T)
+cat("#early skips because of early evaluation", nevalskips, fill=T)
+print(bestEval)
+print(bestDigest) # layout can be reconstructed from this
+cat("Elapsed:", as.double(difftime(endTime, startTime, units = "mins")), "mins", fill=T)
 
