@@ -1,5 +1,10 @@
 # automatic layout gen
 
+# TODO
+# build up layout in batches? eg optimize first 6 then next etc hopefully gives quicker convergence
+# store 2d projection with the 3D solid (??)
+# but do add edgeToVertex Nx2 matrix - there already is ege to faces
+
 library(ggplot2)
 library(svglite)
 library(data.table)
@@ -348,7 +353,7 @@ layoutSquarenessEvaluator <- function(level, min=layout2D[[level]]$minCoords, ma
 cube <- dual(octahedron, name = "Cube")
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
-xx <- dual(icosahedron)
+xx <- icosahedron
 xx <- tetrahedron
 xx <- rhombic(cube)
 xx <- truncate(icosahedron)
