@@ -10,7 +10,7 @@ library(svglite)
 library(data.table)
 
 source("polyhedra.R")
-source("draw.R")
+source("geometry2D.R")
 
 # project 3D face onto 2D
 projectFace <- function(coords3D)
