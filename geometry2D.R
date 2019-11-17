@@ -3,10 +3,10 @@
 # See also https://en.wikipedia.org/wiki/Point_in_polygon#cite_note-6
 # See http://geomalgorithms.com/a03-_inclusion.html
 
-# Checks if point P is inside given face. Uses 
-# winding number algorithm from
-# http://geomalgorithms.com/a03-_inclusion.html
+# Point in polyhedron test useful for 2D layout algorithm
 
+# Next up is intersect of all faces of polyhedron with a given face
+# Segment intersection with polyhedron: http://geomalgorithms.com/a13-_intersect-4.html
 
 #' Tests if a point is Left|On|Right of an infinite line.
 #'
@@ -20,7 +20,8 @@ isLeft <- function(P0, P1, P)
   return ( (P1[1] - P0[1]) * (P[2] - P0[2]) - (P[1] -  P0[1]) * (P1[2] - P0[2]) )  
 }
 
-#' Tests if a point inside a possibly complex face using the winding number test.
+#' Tests if a point inside a possibly complex face using the winding number test. See
+#' Dan Sunday's code in http://geomalgorithms.com/a03-_inclusion.html.
 #'
 #' @param P Point to test (should be a number of two elements)
 #' @param Face Face to test given as a matrix of 2 columns with x and y coordinates
