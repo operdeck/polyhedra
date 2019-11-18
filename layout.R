@@ -314,18 +314,16 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
         possibleOverlap <- which(sapply(safeseq(level), function(l) {
           if (layout2D[[l]]$faceReference != nextFace$connectedToFaceReference) {
             if (isBoundingBoxOverlap(layout2D[[l]], nextFace)) {
+
+              # optionally bypass the connection pts
+              # possibleOverlappingPoints <-
+              #   which(!(nextFace$vexReferences %in% polyhedron3D$edgeToVertices[nextFace$connectionEdge,]))
               
               ## Any of l's points in nextFace or vice versa...?
               pip1 <- apply(layout2D[[l]]$coords2D, 1, isPointInFace, nextFace$coords2D)
+              if (any(pip1)) return(T)
               pip2 <- apply(nextFace$coords2D, 1, isPointInFace, layout2D[[l]]$coords2D)
-              
-              if (any(pip1) | any(pip2)) {
-                #print(layout2D[[l]]$vexReferences[pip1])
-                #print(nextFace$vexReferences[pip2])
-                return(T)
-              }
-              # possibleOverlappingPoints <-
-              #   which(!(nextFace$vexReferences %in% polyhedron3D$edgeToVertices[nextFace$connectionEdge,]))
+              if (any(pip2)) return(T)
             }
           }
           return(F)
