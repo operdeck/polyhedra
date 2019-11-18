@@ -10,6 +10,7 @@ dropZeros <- function(a) { return(a[a!=0]) }
 # - a square matrix coordPairToFaces mapping point (coordinate) pairs to the index of the faces next to it - no order implied
 # - a square and symetrical matrix coordPairToEdge mapping point (coordinate) pairs to the number (index) of the edge connecting both
 # - a matrix edgeToFaces with the two (or less in case of gaps) faces connected to an edge
+# - a matrix edgeToVertices with the two vertices that form an edge, reverse of coordPairToEdge
 # - a list bodies with each element a distinct set of faces belonging to a seperate body
 # - an unordered list vertexFigures with for every vertex of the polygon (NB in compounds there could be multiple of these per point):
 #       - the coordinate index of the center point
@@ -57,15 +58,19 @@ topology <- function(p, debug=F)
     }
   }
   
-  # Build edgeToFaces from those two matrices. coordPairToEdge[n, 1:2] gives the two faces next to n
+  # Build edgeToFaces and edgeToVertices from those two matrices.
   
   edgeToFaces <- matrix(nrow=max(c(0,coordPairToEdge)), ncol=2, data=0)
+  edgeToVertices <- matrix(nrow=max(c(0,coordPairToEdge)), ncol=2, data=0)
   for (i in safeseq(nrow(coordPairToEdge))) {
     for (j in safeseq(ncol(coordPairToEdge))) {
       edge <- coordPairToEdge[i,j]
       if (edge != 0) {
         edgeToFaces[edge, 1] <- coordPairToFaces[i,j]  
         edgeToFaces[edge, 2] <- coordPairToFaces[j,i]  
+        
+        edgeToVertices[edge, 1] <- i
+        edgeToVertices[edge, 2] <- j
       }
     }
   }
@@ -139,6 +144,7 @@ topology <- function(p, debug=F)
   return (list(coordPairToEdge=coordPairToEdge, 
                coordPairToFaces=coordPairToFaces,
                edgeToFaces=edgeToFaces,
+               edgeToVertices=edgeToVertices,
                vertexFigures=vexFigures,
                bodies=bodies))
 }
