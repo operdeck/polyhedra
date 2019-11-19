@@ -21,7 +21,7 @@ source("geometry2D.R")
 #' @param trace Debug flag
 #'
 #' @return Fully defined 2D face
-positionNextFace <- function(polyhedron3D, edge=NA, placedFaces=c(), level=1, trace=T) 
+positionNextFace <- function(polyhedron3D, edge=NA, placedFaces=c(), level=1, debug=T) 
 {
   if (length(placedFaces) > 0) {
     if (polyhedron3D$edgeToFaces[edge,1] %in% placedFaces) {
@@ -32,7 +32,7 @@ positionNextFace <- function(polyhedron3D, edge=NA, placedFaces=c(), level=1, tr
       placedFaceIdx <- polyhedron3D$edgeToFaces[edge,2]
     }
     vertices <- ((which(polyhedron3D$coordPairToEdge==edge)-1) %/% nrow(polyhedron3D$coordPairToEdge))+1
-    if (trace) {cat(paste0(rep(" ", level),collapse=""), 
+    if (debug) {cat(paste0(rep(" ", level),collapse=""), 
                     "finding next face for edge", edge, 
                     "and existing face", paste0("F",placedFaceIdx), 
                     ":", paste0("F",newFaceIdx), 
@@ -136,13 +136,16 @@ drawLayout <- function(level, debug=T, original)
       geom_hline(yintercept = layout2D[[level]]$layoutMinCoords[2], colour="yellow", linetype="dashed") + 
       geom_hline(yintercept = layout2D[[level]]$layoutMaxCoords[2], colour="yellow", linetype="dashed") + 
       geom_vline(xintercept = layout2D[[level]]$layoutMinCoords[1], colour="yellow", linetype="dashed") + 
-      geom_vline(xintercept = layout2D[[level]]$layoutMaxCoords[1], colour="yellow", linetype="dashed")
+      geom_vline(xintercept = layout2D[[level]]$layoutMaxCoords[1], colour="yellow", linetype="dashed") +
+      theme_minimal()
   } else {
     p <- p + theme_void()
   }
   p <- p+theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5))
   
   print(p)
+  
+  if(stopAtFirstLayout) stop("Stopping after first layout, for debugging")
   
   ggsave(file=file.path("layouts",paste0("layout ", original$name, ".svg")), plot=p, width=10, height=10)
 }
@@ -185,6 +188,7 @@ isBoundingCircleOverlap <- function(fig1, fig2)
 # Find the best 2D layout given global layout
 best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, face2D = NULL, maxrounds = 0)
 {
+  spacing <- paste0(rep(" ", level),collapse = "")
   if (level == 1) 
   {
     layout2D <<- list()
@@ -196,6 +200,7 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
     nevalskips <<- 0
     ndigestskips <<- 0
     noverlapdetects <<- 0
+    stopAtFirstLayout <<- F
   }
   
   if (maxrounds < 0 & bestDigest != "") return() # stop when there is 1 solution
@@ -209,7 +214,7 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
   #
   
   if (is.null(face2D)) {
-    face2D <- positionNextFace(polyhedron3D, trace=trace)
+    face2D <- positionNextFace(polyhedron3D, debug=debug)
   }
   layout2D[[level]] <<- face2D
   allLayoutDigests[[1+length(allLayoutDigests)]] <<- getLayoutDigest(level)
@@ -233,20 +238,20 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
     layout2D[[level]]$layoutMaxCoords <<- face2D$maxCoords
   }
   
-  if (trace) {
-    cat(paste0(rep(" ", level),collapse=""),
+  if (debug) {
+    cat(spacing,
         "Entered level", level, "placed face:", face2D$faceReference, 
         "along edge", face2D$connectionEdge, edgeDescr(polyhedron3D, face2D$connectionEdge), 
         "eval =", evaluator(level), fill = T)
     drawLayout(level=level, debug = T, polyhedron3D)
-    invisible(readline(prompt="Press [enter] to continue"))
+    if (trace) invisible(readline(prompt="Press [enter] to continue"))
   }
   
   #
   # Are we done?
   #
   if (evaluator(level) > bestEval) {
-    if (trace) {cat(paste0(rep(" ", level),collapse=""),"*** early exit **** at level", level,"eval=", evaluator(level), "but best is", bestEval, fill = T)}
+    if (debug) {cat(spacing,"*** early exit **** at level", level,"eval=", evaluator(level), "but best is", bestEval, fill = T)}
     nevalskips <<- nevalskips+1
     return()
   }
@@ -268,11 +273,11 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
     if (evaluator(level) < bestEval & !deltaEquals(evaluator(level), bestEval)) {
       bestEval <<- evaluator(level)
       bestDigest <<- getLayoutDigest(level)
-      if (trace) {cat(paste0(rep(" ", level),collapse=""),"Done with better evaluation! At level", level, "eval=", evaluator(level), fill = T)  }
-      if (!trace) {cat("Found layout, round",ncalls,"eval=",round(bestEval,5),round(difftime(Sys.time(), startTime, units = "mins"),5),"mins", fill = T)  }
+      if (debug) {cat(spacing,"Done with better evaluation! At level", level, "eval=", evaluator(level), fill = T)  }
+      if (!debug) {cat("Found layout, round",ncalls,"eval=",round(bestEval,5),round(difftime(Sys.time(), startTime, units = "mins"),5),"mins", fill = T)  }
       drawLayout(level, debug=debug, original = polyhedron3D)
     } else {
-      if (trace) {cat(paste0(rep(" ", level),collapse=""),"Done but no improvement. At level", level, "eval=", evaluator(level), fill = T)  }
+      if (debug) {cat(spacing,"Done but no improvement. At level", level, "eval=", evaluator(level), fill = T)  }
     }
   } else {
     candidates <- candidates[sample.int(length(candidates))] # shuffle to speed up search
@@ -282,15 +287,15 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
     for (edge in candidates) {
       layoutDigest <- getLayoutDigest(level, edge)
       if (layoutDigest %in% allLayoutDigests) {
-        if (trace) {cat(paste0(rep(" ", level),collapse=""),"*** skip processing edge", edge, " **** at level", level,"layout done already:", layoutDigest, fill = T)}
+        if (debug) {cat(spacing,"*** skip processing edge", edge, " **** at level", level,"layout done already:", layoutDigest, fill = T)}
         ndigestskips <<- ndigestskips+1
         next
       }
       
-      if (trace) {cat(paste0(rep(" ", level),collapse=""),"select edge:", edge, edgeDescr(polyhedron3D, edge), "from", candidates, fill = T)}
+      if (debug) {cat(spacing,"select edge:", edge, edgeDescr(polyhedron3D, edge), "from", candidates, fill = T)}
       
       # place it into position
-      newFace2D <- positionNextFace(polyhedron3D, edge, placedFaces, level, trace) 
+      newFace2D <- positionNextFace(polyhedron3D, edge, placedFaces, level, debug) 
       
       candidateFaces[[1+length(candidateFaces)]] <- newFace2D
     }
@@ -309,9 +314,12 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
       for (c in order(candidateEvaluation)) {
         nextFace <- candidateFaces[[c]]
         
+        ## TODO call
+        # checkOverlap(nextFace, level)
+        
         # last check if all is well - check if there is no overlap with existing faces
-        # in the layout
-        possibleOverlap <- which(sapply(safeseq(level), function(l) {
+        hasOverlap <- NULL
+        for (l in safeseq(level)) {
           if (layout2D[[l]]$faceReference != nextFace$connectedToFaceReference) {
             if (isBoundingBoxOverlap(layout2D[[l]], nextFace)) {
 
@@ -320,22 +328,35 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
               #   which(!(nextFace$vexReferences %in% polyhedron3D$edgeToVertices[nextFace$connectionEdge,]))
               
               ## Any of l's points in nextFace or vice versa...?
-              pip1 <- apply(layout2D[[l]]$coords2D, 1, isPointInFace, nextFace$coords2D)
-              if (any(pip1)) return(T)
+              if (nextFace$connectedToFaceReference == layout2D[[l]]$faceReference) {
+                # exclude points along the edge that directly connects these two faces
+                connectedIdx <- layout2D[[l]]$vexReferences %in% polyhedron3D$edgeToVertices[nextFace$connectionEdge,]
+                pip1 <- apply(layout2D[[l]]$coords2D[!connectedIdx], 1, isPointInFace, nextFace$coords2D)
+              } else {
+                pip1 <- apply(layout2D[[l]]$coords2D, 1, isPointInFace, nextFace$coords2D)
+              }
+              if (any(pip1)) {
+                hasOverlap <- list(f=layout2D[[l]]$faceReference, p=layout2D[[l]]$vexReferences[pip1])
+                break
+              }
               pip2 <- apply(nextFace$coords2D, 1, isPointInFace, layout2D[[l]]$coords2D)
-              if (any(pip2)) return(T)
+              if (any(pip2)) {
+                hasOverlap <- list(f=layout2D[[l]]$faceReference, p=nextFace$vexReferences[pip2])
+                break
+              }
             }
           }
-          return(F)
-        }))
-        if (length(possibleOverlap) > 0) {
+        }
+        if (!is.null(hasOverlap)) {
           noverlapdetects <<- noverlapdetects+1
-          if (trace) {
-            cat(paste0(rep(" ", level),collapse=""),"** overlap", 
-                paste0("F",nextFace$faceReference), "with",
-                paste(sapply(possibleOverlap, function(i){paste0("F",layout2D[[i]]$faceReference)}),collapse=","),fill=T)
+          if (debug) {
+            cat(spacing,"overlap", 
+                paste0("F",nextFace$faceReference), 
+                "with", paste0("F",hasOverlap$f), 
+                "at", paste(paste0("P", hasOverlap$p),collapse=","), fill=T)
           }
-          next
+          stopAtFirstLayout<<-T
+          #next
         }
 
         best2DLayout(polyhedron3D, level+1, evaluator, trace=trace, debug=debug, candidateFaces[[c]], maxrounds = maxrounds)
@@ -343,7 +364,7 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
     }
   }
   
-  if (trace) {cat(paste0(rep(" ", level),collapse=""),"Returning from level", level, fill = T)}
+  if (debug) {cat(spacing,"Returning from level", level, fill = T)}
 }
 
 layoutAreaEvaluator <- function(level, min=layout2D[[level]]$layoutMinCoords, max=layout2D[[level]]$layoutMaxCoords)
@@ -376,6 +397,7 @@ xx <- quasi(cube)
 xx <- rhombic(cube)
 xx <- truncate(cube)
 xx <- rhombic(dodecahedron)
+xx <- truncate(octahedron)
 #clear3d()
 #drawPoly(xx, debug=T)
 
@@ -388,7 +410,7 @@ xx <- rhombic(dodecahedron)
 startTime <- Sys.time()
 
 # best2DLayout(xx, evaluator = layoutAreaEvaluator, trace=F, debug=F, maxrounds=50000)
-best2DLayout(xx, evaluator = layoutAreaEvaluator, trace=F, debug=F)
+best2DLayout(xx, evaluator = layoutAreaEvaluator, trace=F, debug=T)
 
 here <- function() {}
 
