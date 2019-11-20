@@ -54,7 +54,7 @@ positionNextFace <- function(polyhedron3D, edge=NA, placedFaces=c(), level=1, de
     face3Dto2DprojectionCache[[newFaceIdx]] <<- face2D
   }
   #drawFace2D(face2D, color="green")
-
+  
   if (length(placedFaces) > 0) {
     # lookup the one that is placed already
     currentFace2D <- layout2D[[which(sapply(layout2D[1:level], function(x){return(x$faceReference)})==placedFaceIdx)]]
@@ -94,6 +94,42 @@ positionNextFace <- function(polyhedron3D, edge=NA, placedFaces=c(), level=1, de
   return(face2D)
 }
 
+constructFlapje <- function(level, original)
+{
+  allConnectionEdges <- sapply(layout2D[1:level], function(l) {return(l$connectionEdge)})
+  
+  flapForOneFace <- function(face, original)
+  {
+    vex1 <- face$vexReferences
+    vex2 <- shiftrotate(vex1)
+    
+    # Index of P1 and P2 for edges that are not used to connect 2D projections
+    edge <- sapply(seq(length(vex1)), function(i){return(original$coordPairToEdge[vex1[i],vex2[i]])})
+    idx1 <- which(!(edge %in% allConnectionEdges))
+    idx2 <- (idx1%%length(vex1))+1
+    
+    wideFmt <- data.table(P1x = face$coords2D[idx1,1], 
+                          P1y = face$coords2D[idx1,2], 
+                          P2x = face$coords2D[idx2, 1],
+                          P2y = face$coords2D[idx2, 2],
+                          edge = edge[idx1])
+    wideFmt[, d := distance(c(P1x, P1y), c(P2x, P2y))]
+    wideFmt[, h := d/3] # height
+    wideFmt[, alpha := h/tan(60*(2*pi/360))] # angle fixed to 60 degr
+    wideFmt[, c("P3x", "P3y") := list(P1x + (alpha/d)*(P2x-P1x) - (h/d)*(P1y-P2y), P1y + (alpha/d)*(P2y-P1y) - (h/d)*(P2x-P1x))]
+    wideFmt[, c("P4x", "P4y") := list(P2x - (alpha/d)*(P2x-P1x) - (h/d)*(P1y-P2y), P2y - (alpha/d)*(P2y-P1y) - (h/d)*(P2x-P1x))]
+    
+    return(wideFmt)
+  }
+  
+  allWide <- rbindlist(lapply(layout2D[1:level],flapForOneFace,original))
+  allWide[, n:=seq(.N), by=edge]
+  allWide <- allWide[n==1]
+  allWide[, eseq := seq(.N)]
+  
+  return(allWide)
+}
+
 drawLayout <- function(level, debug=T, original)
 {
   colors <- assignColors(original)
@@ -115,18 +151,26 @@ drawLayout <- function(level, debug=T, original)
                       faceReference=layout2D[[l]]$faceReference))
   }))
   
-  # size <- max(layout2D[[level]]$layoutMaxCoords[2]-layout2D[[level]]$layoutMinCoords[2],
-  #             layout2D[[level]]$layoutMaxCoords[1]-layout2D[[level]]$layoutMinCoords[1])
-  # xcenter <- mean(layout2D[[level]]$layoutMinCoords[1], layout2D[[level]]$layoutMaxCoords[1])
-  # ycenter <- mean(layout2D[[level]]$layoutMinCoords[2], layout2D[[level]]$layoutMaxCoords[2])
+  fWide <- constructFlapje(level, original)
+  fLong <- data.table( x = c(fWide$P1x, fWide$P3x, fWide$P4x, fWide$P2x),
+                       y = c(fWide$P1y, fWide$P3y, fWide$P4y, fWide$P2y),
+                       edge = rep(fWide$eseq, 4))
+  fCenters <- fLong[, .(x=mean(x), y=mean(y)), by=edge]
+
+  size <- 1.1*max(layout2D[[level]]$layoutMaxCoords[2]-layout2D[[level]]$layoutMinCoords[2],
+                  layout2D[[level]]$layoutMaxCoords[1]-layout2D[[level]]$layoutMinCoords[1])
+  xcenter <- mean(c(layout2D[[level]]$layoutMinCoords[1], layout2D[[level]]$layoutMaxCoords[1]))
+  ycenter <- mean(c(layout2D[[level]]$layoutMinCoords[2], layout2D[[level]]$layoutMaxCoords[2]))
   
   p <-ggplot(plotdata, aes(x,y)) + 
+    geom_polygon(data=fLong, mapping=aes(x,y,group=edge), fill="lightgrey", color="black", linetype="dotted", size=0.1, inherit.aes = F)+
+    geom_text(data=fCenters, mapping=aes(x,y,label=edge), inherit.aes = F, size=2) +
     geom_polygon(aes(fill = color, group = faceReference), color="black", size=0.1, show.legend = FALSE) +
     scale_fill_manual(values = colorMapIdentity)+
-    # scale_x_continuous(limits = c(xcenter-size/2, xcenter+size/2))+
-    # scale_y_continuous(limits = c(ycenter-size/2, ycenter+size/2))+
-    scale_x_continuous(limits = c(min(layout2D[[level]]$layoutMinCoords), max(layout2D[[level]]$layoutMaxCoords)))+
-    scale_y_continuous(limits = c(min(layout2D[[level]]$layoutMinCoords), max(layout2D[[level]]$layoutMaxCoords)))+
+    scale_x_continuous(limits = c(xcenter-size/2, xcenter+size/2))+
+    scale_y_continuous(limits = c(ycenter-size/2, ycenter+size/2))+
+    # scale_x_continuous(limits = c(min(layout2D[[level]]$layoutMinCoords), max(layout2D[[level]]$layoutMaxCoords)))+
+    # scale_y_continuous(limits = c(min(layout2D[[level]]$layoutMinCoords), max(layout2D[[level]]$layoutMaxCoords)))+
     ggtitle(paste("Layout of", original$name), 
             subtitle = paste("round",ncalls,"eval=",round(bestEval,5),round(difftime(Sys.time(), startTime, units = "mins"),2),"mins"))
   
@@ -243,8 +287,10 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
         "Entered level", level, "placed face:", face2D$faceReference, 
         "along edge", face2D$connectionEdge, edgeDescr(polyhedron3D, face2D$connectionEdge), 
         "eval =", evaluator(level), fill = T)
-    drawLayout(level=level, debug = T, polyhedron3D)
-    if (trace) invisible(readline(prompt="Press [enter] to continue"))
+    if (trace) {
+      drawLayout(level=level, debug = T, polyhedron3D)
+      invisible(readline(prompt="Press [enter] to continue"))
+    }
   }
   
   #
@@ -322,7 +368,7 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
         for (l in safeseq(level)) {
           if (layout2D[[l]]$faceReference != nextFace$connectedToFaceReference) {
             if (isBoundingBoxOverlap(layout2D[[l]], nextFace)) {
-
+              
               # optionally bypass the connection pts
               # possibleOverlappingPoints <-
               #   which(!(nextFace$vexReferences %in% polyhedron3D$edgeToVertices[nextFace$connectionEdge,]))
@@ -355,10 +401,10 @@ best2DLayout <- function(polyhedron3D, level = 1, evaluator, trace=T, debug=T, f
                 "with", paste0("F",hasOverlap$f), 
                 "at", paste(paste0("P", hasOverlap$p),collapse=","), fill=T)
           }
-          stopAtFirstLayout<<-T
-          #next
+          #stopAtFirstLayout<<-T
+          next
         }
-
+        
         best2DLayout(polyhedron3D, level+1, evaluator, trace=trace, debug=debug, candidateFaces[[c]], maxrounds = maxrounds)
       }
     }
@@ -390,14 +436,14 @@ dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
 xx <- icosahedron
 xx <- tetrahedron
-xx <- truncate(icosahedron)
+xx <- truncate(cube)
 xx <- dodecahedron
-xx <- cube
 xx <- quasi(cube)
 xx <- rhombic(cube)
 xx <- truncate(cube)
-xx <- rhombic(dodecahedron)
 xx <- truncate(octahedron)
+xx <- cube
+xx <- rhombic(dodecahedron)
 #clear3d()
 #drawPoly(xx, debug=T)
 
@@ -410,7 +456,7 @@ xx <- truncate(octahedron)
 startTime <- Sys.time()
 
 # best2DLayout(xx, evaluator = layoutAreaEvaluator, trace=F, debug=F, maxrounds=50000)
-best2DLayout(xx, evaluator = layoutAreaEvaluator, trace=F, debug=T)
+best2DLayout(xx, evaluator = layoutAreaEvaluator, trace=F, debug=F)
 
 here <- function() {}
 
