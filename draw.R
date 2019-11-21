@@ -1,6 +1,6 @@
 library(rgl)
 library(data.table)
-source("math.R")
+source("geometry.R")
 
 # The function rgl_init() will create a new RGL device if requested or if there is no opened device:
 

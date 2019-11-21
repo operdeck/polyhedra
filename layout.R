@@ -8,8 +8,8 @@ library(ggplot2)
 library(svglite)
 library(data.table)
 
-source("polyhedra.R")
-source("geometry2D.R")
+source("geometry.R")
+source("polyhedra.R") # only for testing
 
 set.seed(1234)
 
@@ -67,7 +67,7 @@ positionNextFace <- function(polyhedron3D, edge=NA, placedFaces=c(), level=1, de
   
   if (length(placedFaces) > 0) {
     # lookup the one that is placed already
-    currentFace2D <- layout2D[[which(sapply(layout2D[1:level], function(x){return(x$faceReference)})==placedFaceIdx)]]
+    currentFace2D <- layout2D[[which(placedFaces==placedFaceIdx)]]
     
     # identify the vertices of the edge in both faces
     if (length(vertices) != 2) stop("An edge must have 2 vertices")
@@ -98,50 +98,47 @@ positionNextFace <- function(polyhedron3D, edge=NA, placedFaces=c(), level=1, de
   face2D$connectionEdge <- edge
   face2D$connectedToFaceReference <- placedFaceIdx
   
-  # TODO
-  # - connectionPoints
-  # - faceReference (was face) (done)
   return(face2D)
-}
-
-constructFlapje <- function(level, original)
-{
-  allConnectionEdges <- sapply(layout2D[1:level], function(l) {return(l$connectionEdge)})
-  
-  flapForOneFace <- function(face, original)
-  {
-    vex1 <- face$vexReferences
-    vex2 <- shiftrotate(vex1)
-    
-    # Index of P1 and P2 for edges that are not used to connect 2D projections
-    edge <- sapply(seq(length(vex1)), function(i){return(original$coordPairToEdge[vex1[i],vex2[i]])})
-    idx1 <- which(!(edge %in% allConnectionEdges))
-    idx2 <- (idx1%%length(vex1))+1
-    
-    wideFmt <- data.table(P1x = face$coords2D[idx1,1], 
-                          P1y = face$coords2D[idx1,2], 
-                          P2x = face$coords2D[idx2, 1],
-                          P2y = face$coords2D[idx2, 2],
-                          edge = edge[idx1])
-    wideFmt[, d := distance(c(P1x, P1y), c(P2x, P2y))]
-    wideFmt[, h := d/3] # height
-    wideFmt[, alpha := h/tan(60*(2*pi/360))] # angle fixed to 60 degr
-    wideFmt[, c("P3x", "P3y") := list(P1x + (alpha/d)*(P2x-P1x) - (h/d)*(P1y-P2y), P1y + (alpha/d)*(P2y-P1y) - (h/d)*(P2x-P1x))]
-    wideFmt[, c("P4x", "P4y") := list(P2x - (alpha/d)*(P2x-P1x) - (h/d)*(P1y-P2y), P2y - (alpha/d)*(P2y-P1y) - (h/d)*(P2x-P1x))]
-    
-    return(wideFmt)
-  }
-  
-  allWide <- rbindlist(lapply(layout2D[1:level],flapForOneFace,original))
-  allWide[, n:=seq(.N), by=edge]
-  allWide <- allWide[n==1]
-  allWide[, eseq := seq(.N)]
-  
-  return(allWide)
 }
 
 drawLayout <- function(level, debug=T, original)
 {
+  constructAllFlapjes <- function(level, original)
+  {
+    allConnectionEdges <- sapply(layout2D[1:level], function(l) {return(l$connectionEdge)})
+    
+    flapForOneFace <- function(face, original)
+    {
+      vex1 <- face$vexReferences
+      vex2 <- shiftrotate(vex1)
+      
+      # Index of P1 and P2 for edges that are not used to connect 2D projections
+      edge <- sapply(seq(length(vex1)), function(i){return(original$coordPairToEdge[vex1[i],vex2[i]])})
+      idx1 <- which(!(edge %in% allConnectionEdges))
+      idx2 <- (idx1%%length(vex1))+1
+      
+      flap <- data.table(P1x = face$coords2D[idx1,1], 
+                         P1y = face$coords2D[idx1,2], 
+                         P2x = face$coords2D[idx2, 1],
+                         P2y = face$coords2D[idx2, 2],
+                         edge = edge[idx1])
+      flap[, d := distance(c(P1x, P1y), c(P2x, P2y))]
+      flap[, h := d/3] # height
+      flap[, alpha := h/tan(60*(2*pi/360))] # angle fixed to 60 degr
+      flap[, c("P3x", "P3y") := list(P1x + (alpha/d)*(P2x-P1x) - (h/d)*(P1y-P2y), P1y + (alpha/d)*(P2y-P1y) - (h/d)*(P2x-P1x))]
+      flap[, c("P4x", "P4y") := list(P2x - (alpha/d)*(P2x-P1x) - (h/d)*(P1y-P2y), P2y - (alpha/d)*(P2y-P1y) - (h/d)*(P2x-P1x))]
+      
+      return(flap)
+    }
+    
+    all <- rbindlist(lapply(layout2D[1:level],flapForOneFace,original))
+    all[, n:=seq(.N), by=edge] # only keep the first for all pairs of flapjes for the same edge
+    all <- all[n==1]
+    all[, eseq := seq(.N)] # sequential numbering of the edges (not their actual indices)
+    
+    return(all)
+  }
+  
   colors <- assignColors(original)
   
   plotdata <- rbindlist(lapply(layout2D[1:level], function(l) {
@@ -169,7 +166,7 @@ drawLayout <- function(level, debug=T, original)
   p <-ggplot(plotdata, aes(x,y)) 
   
   if (!debug) {
-    flapjes <- constructFlapje(level, original)
+    flapjes <- constructAllFlapjes(level, original)
     flapjesLongFmt <- data.table( x = c(flapjes$P1x, flapjes$P3x, flapjes$P4x, flapjes$P2x),
                          y = c(flapjes$P1y, flapjes$P3y, flapjes$P4y, flapjes$P2y),
                          edge = rep(flapjes$eseq, 4))
@@ -208,11 +205,60 @@ drawLayout <- function(level, debug=T, original)
   ggsave(file=file.path("layouts",paste0("layout ", original$name, ".svg")), plot=p, width=10, height=10)
 }
 
-getLayoutDigest <- function(level, candidate=NULL)
+
+addFaceToLayout <- function(face2D, polyhedron3D, level) 
+{
+  layout2D[[level]] <<- face2D
+  
+  # update the list of available edges, and store it with the layout itself
+  shiftFacePoints <- shiftrotate(face2D$vexReferences)
+  newEdges <- sapply(seq(length(face2D$vexReferences)), function(i) {return(polyhedron3D$coordPairToEdge[face2D$vexReferences[i],shiftFacePoints[i]])})
+  if (level > 1) {
+    layout2D[[level]]$layoutCandidateEdges <<-
+      setdiff(c(newEdges, layout2D[[level-1]]$layoutCandidateEdges), intersect(layout2D[[level-1]]$layoutCandidateEdges, newEdges))
+  } else {
+    layout2D[[level]]$layoutCandidateEdges <<- newEdges
+  }
+  
+  # keep track of the layout min/max
+  if (level > 1) {
+    layout2D[[level]]$layoutMinCoords <<- apply(matrix(c(face2D$minCoords, layout2D[[level-1]]$layoutMinCoords), ncol=2, byrow = T), 2, min)
+    layout2D[[level]]$layoutMaxCoords <<- apply(matrix(c(face2D$maxCoords, layout2D[[level-1]]$layoutMaxCoords), ncol=2, byrow = T), 2, max)
+  } else {
+    layout2D[[level]]$layoutMinCoords <<- face2D$minCoords
+    layout2D[[level]]$layoutMaxCoords <<- face2D$maxCoords
+  }
+}
+
+layoutToDigest <- function(level, candidate=NULL)
 {
   connections <- sapply(layout2D[1:level], function(f) {return(f$connectionEdge)})
   digest <- paste(sort(c(connections,candidate)),collapse="-")
   return(digest)
+}
+
+digestToLayout <- function(digest = bestDigest, poly = xx)
+{
+  layout2D <<- list()
+  faces <- list()
+  
+  # first one is implicit
+  level <- 1
+  face <- positionNextFace(poly)
+  addFaceToLayout(face, poly, level) 
+  faces[[level]] <- face$faceReference
+  
+  edges <- as.numeric(unlist(strsplit(digest,"-",fixed = T)))
+  repeat {
+    #print(unlist(faces))
+    e <- edges[which(apply(xx$edgeToFaces[edges,],1,function(x) {return(1==length(intersect(x,unlist(faces))))}))[1]]
+    if (is.na(e)) break
+    #print(e)
+    level <- level + 1
+    face <- positionNextFace(poly, edge = e, placedFaces = unlist(faces), level = level)
+    faces[[level]] <- face$faceReference
+    addFaceToLayout(face, poly, level) 
+  }
 }
 
 logPoly <- function(elem = NULL)
@@ -377,27 +423,9 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
   if (is.null(face2D)) {
     face2D <- positionNextFace(polyhedron3D, debug=debug)
   }
-  layout2D[[level]] <<- face2D
-  allLayoutDigests[[1+length(allLayoutDigests)]] <<- getLayoutDigest(level)
   
-  # update the list of available edges, and store it with the layout itself
-  shiftFacePoints <- shiftrotate(face2D$vexReferences)
-  newEdges <- sapply(seq(length(face2D$vexReferences)), function(i) {return(polyhedron3D$coordPairToEdge[face2D$vexReferences[i],shiftFacePoints[i]])})
-  if (level > 1) {
-    layout2D[[level]]$layoutCandidateEdges <<-
-      setdiff(c(newEdges, layout2D[[level-1]]$layoutCandidateEdges), intersect(layout2D[[level-1]]$layoutCandidateEdges, newEdges))
-  } else {
-    layout2D[[level]]$layoutCandidateEdges <<- newEdges
-  }
-  
-  # keep track of the layout min/max
-  if (level > 1) {
-    layout2D[[level]]$layoutMinCoords <<- apply(matrix(c(face2D$minCoords, layout2D[[level-1]]$layoutMinCoords), ncol=2, byrow = T), 2, min)
-    layout2D[[level]]$layoutMaxCoords <<- apply(matrix(c(face2D$maxCoords, layout2D[[level-1]]$layoutMaxCoords), ncol=2, byrow = T), 2, max)
-  } else {
-    layout2D[[level]]$layoutMinCoords <<- face2D$minCoords
-    layout2D[[level]]$layoutMaxCoords <<- face2D$maxCoords
-  }
+  addFaceToLayout(face2D, polyhedron3D, level) 
+  allLayoutDigests[[1+length(allLayoutDigests)]] <<- layoutToDigest(level)
   
   if (debug) {
     cat(spacing,
@@ -435,7 +463,7 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
   if (length(candidates) == 0) {
     if (evaluator(level) < bestEval & !deltaEquals(evaluator(level), bestEval)) {
       bestEval <<- evaluator(level)
-      bestDigest <<- getLayoutDigest(level)
+      bestDigest <<- layoutToDigest(level)
       if (debug) {cat(spacing,"Done with better evaluation! At level", level, "eval=", evaluator(level), fill = T)  }
       if (!debug) {cat("Found layout, round",polyStatus[["ncalls"]],"eval=",round(bestEval,5),round(difftime(Sys.time(), startTime, units = "mins"),5),"mins", fill = T)  }
       drawLayout(level, debug=debug, original = polyhedron3D)
@@ -448,7 +476,7 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
     # first find the 2D faces
     candidateFaces <- list()
     for (edge in candidates) {
-      layoutDigest <- getLayoutDigest(level, edge)
+      layoutDigest <- layoutToDigest(level, edge)
       if (layoutDigest %in% allLayoutDigests) {
         if (debug) {cat(spacing,"*** skip processing edge", eToStr(polyhedron3D, edge), "at level", level,"layout done already:", layoutDigest, fill = T)}
         logPoly("early skips because of repeated layout")
@@ -493,7 +521,6 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
 cube <- dual(octahedron, name = "Cube")
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
-xx <- icosahedron
 xx <- tetrahedron
 xx <- truncate(cube)
 xx <- quasi(cube)
@@ -502,6 +529,7 @@ xx <- truncate(cube)
 xx <- truncate(octahedron)
 xx <- rhombic(dodecahedron)
 xx <- dodecahedron
+xx <- icosahedron
 #clear3d()
 #drawPoly(xx, debug=T)
 
@@ -514,7 +542,7 @@ xx <- dodecahedron
 startTime <- Sys.time()
 
 #best2DLayout(xx, evaluator = layoutAreaEvaluator, trace=F, debug=T, maxrounds=5000)
-best2DLayout(xx, evaluator = layoutAreaEvaluator, debug=T)
+best2DLayout(xx, evaluator = layoutA4Evaluator, debug=T, maxrounds = -1)
 
 endTime <- Sys.time()
 logPoly()
