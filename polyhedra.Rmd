@@ -21,6 +21,7 @@ For example, below we construct an octahedron by passing in the 8 vertex coordin
 source("polyhedra.R")
 source("draw.R")
 source("discover.R")
+source("layout.R")
 
 octahedron <- buildRegularPoly(coords = rbind(expand.grid(x = c(-1,1), y = 0, z = 0), 
                                                 expand.grid(x = 0, y = c(-1,1), z = 0), 
@@ -201,6 +202,7 @@ Applying the transformations repeatedly on on non-regular solids to start with s
 ```{r}
 irregulars <- list( truncate(truncate(truncate(dodecahedron))),
                     quasi(quasi(truncate(octahedron))),
+                    compose(rhombic(dodecahedron), quasi(dodecahedron)),
                     quasi(truncate(greatIcosahedron)),
                     truncate(quasi(dodecahedron)) )
 ```
@@ -212,6 +214,24 @@ snapshot3d("snapshots/irregulars.png", fmt = "png", top = TRUE )
 ```
 
 ![Some irregular solids](snapshots/irregulars.png)
+
+# 2D Layouts
+
+The 3D-solids can also be rendered onto 2D layouts suitable for printing and modeling in paper. Currently only simple convex solids are supported but plans include to extend to arbirary complex ones.
+
+The 2D layout is rendered as a ggplot object which can be exported as SVG then opened in a browser or other viewer and printed in high res. Perhaps even direct PDF output is possible depending on the installation of R.
+
+They layout algorithm tries to build a maximally compact layout but search can be very time consuming, so by default the # of iterations is capped.
+
+```{r, width=10, height=10}
+layout2d <- get2DLayout(dodecahedron)
+
+ggsave(file=file.path("layouts",paste0("layout ", dodecahedron$name, ".svg")), 
+       plot=layout2d, width=10, height=10)
+layout2d
+```
+
+
 
 # Various stellations
 

@@ -1,5 +1,14 @@
 # 2D geometry algos
 
+# From http://geomalgorithms.com/code.html possibly useful
+# * orientation2D_Polygon() - test the orientation of a simple 2D polygon
+# * wn_PnPoly() - winding number test for a point in a 2D polygon (PIP, point in plane)
+# * intersect2D_2Segments() - find the intersection of 2 finite 2D segments
+# * inSegment() - determine if a point is inside a segment (any D)
+# * intersect3D_SegmentPlane() - find the 3D intersection of a segment and a plane
+# * intersect3D_2Planes() - find the 3D intersection of two planes
+# * intersect3D_RayTriangle() - find the 3D intersection of a ray with a triangle
+
 # See also https://en.wikipedia.org/wiki/Point_in_polygon#cite_note-6
 # See http://geomalgorithms.com/a03-_inclusion.html
 
@@ -119,7 +128,8 @@ innerAngles <- function(coords, center = apply(coords,2,mean))
 # 2D rotation matrix
 rotationMatrix2D <- function(theta)
 {
-  return (matrix(c(cos(theta), sin(theta), -sin(theta), cos(theta)), nrow=2))
+  return (rgl::rotationMatrix(theta, 0, 0, 1)[1:2,1:2])
+  #return (matrix(c(cos(theta), sin(theta), -sin(theta), cos(theta)), nrow=2))
 }
 
 # Check if face is flat, given a matrix of coordinates
@@ -139,21 +149,23 @@ isFlatFace <- function(faceCoords)
   return(T)
 }
 
-#' Project 3D face onto 2D
+#' Project 3D face onto 2D. Works by reconstructing the face in the 2D plane from the
+#' inner angles and distances.
 #'
 #' @param coords3D Coordinates of the face in 3D
 #'
 #' @return matrix with the coordinates of the projected face
 projectFace <- function(coords3D)
 {
-  angles <- innerAngles(coords3D)
+  angles <- cumsum(innerAngles(coords3D))
   radii <- distance(coords3D)
-  return(matrix(c(cos(cumsum(angles)) * radii, 
-                  sin(cumsum(angles)) * radii),
+  return(matrix(c(x = cos(angles) * radii, 
+                  y = sin(angles) * radii),
                 nrow = nrow(coords3D)))
 }
 
 #' Tests if a point is Left|On|Right of an infinite line.
+#' From Dan Sunday's code in http://geomalgorithms.com/a03-_inclusion.html.
 #'
 #' @param P0 One point defining the line
 #' @param P1 Other point defining the line
@@ -167,8 +179,8 @@ isLeft <- function(P0, P1, P)
   return(rslt)
 }
 
-#' Tests if a point inside a possibly complex face using the winding number test. See
-#' Dan Sunday's code in http://geomalgorithms.com/a03-_inclusion.html.
+#' Tests if a point inside a possibly complex face using the winding number test.
+#' From Dan Sunday's code in http://geomalgorithms.com/a03-_inclusion.html.
 #'
 #' @param P Point to test (should be an numeric array of two elements)
 #' @param Face Face to test given as a matrix of 2 columns with x and y coordinates
