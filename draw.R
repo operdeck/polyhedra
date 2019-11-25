@@ -27,6 +27,9 @@ polyLines <- function(coords, ...)
 #open3d()
 #shade3d( icosahedron3d() )
 #writeOBJ(filename)
+# todo figure out how to update that obj file with a mtl
+# so to set the face colrs. which app shows these colors
+# properly anyway?
 
 #rgl.spheres(coords$x, coords$y, coords$z, r=0.2, color="yellow")
 #rgl.texts(coords$x, coords$y, coords$z, text = seq(nrow(coords)), color="red")

@@ -110,7 +110,7 @@ positionNextFace <- function(polyhedron3D, edge=NA, placedFaces=c(), level=1, de
   return(face2D)
 }
 
-drawLayout <- function(level=length(layout2D), debug=T, original)
+drawLayout <- function(original, level=length(layout2D), debug=T)
 {
   constructAllFlapjes <- function(level, original)
   {
@@ -259,7 +259,7 @@ layoutToDigest <- function(level, candidate=NULL)
 #'
 #' @param digest Digest string, defaults to the best digest
 #' @param poly Original 3D solid
-digestToLayout <- function(digest = bestDigest, poly)
+digestToLayout <- function(poly, digest = bestDigest)
 {
   layout2D <<- list()
   faces <- list()
@@ -464,7 +464,7 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
         "along edge", eToStr(polyhedron3D, face2D$connectionEdge), 
         "eval =", evaluator(level), fill = T)
     if (debugLevel == 3) {
-      plot <- drawLayout(level=level, debug = T, polyhedron3D)
+      plot <- drawLayout(polyhedron3D, level=level, debug = T)
       print(plot)
       invisible(readline(prompt="Press [enter] to continue"))
     }
@@ -503,7 +503,7 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
       }
       if (debugLevel >= 1) {
         cat("Found layout, round",polyStatus[["ncalls"]],"eval=",round(bestEval,5),elapsedTimeToStr(), fill = T)  
-        plot <- drawLayout(level, debug=T, original = polyhedron3D)
+        plot <- drawLayout(original = polyhedron3D, level, debug=T)
         print(plot)
       }
       if (debugLevel >= 3) {
@@ -574,8 +574,8 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
 get2DLayout <- function(poly)
 {
   best2DLayout(poly, evaluator = layoutA4Evaluator, debugLevel=0, maxrounds = 5000)
-  digestToLayout(digest = bestDigest, poly = poly)
-  return(drawLayout(debug=F, original=poly))
+  digestToLayout(poly, digest = bestDigest)
+  return(drawLayout(original=poly, debug=F))
 }
 
 testLayout <- function()
@@ -602,7 +602,8 @@ testLayout <- function()
   
   # Start with a layout with just the first face
   
-  best2DLayout(xx, evaluator = layoutAreaEvaluator, debugLevel=1, maxrounds=5000)
+  #best2DLayout(xx, evaluator = layoutAreaEvaluator, debugLevel=1, maxrounds=5000)
+  best2DLayout(xx, evaluator = layoutAreaEvaluator, debugLevel=1, maxrounds=0)
   
   
   #best2DLayout(xx, evaluator = layoutA4Evaluator, debug=T, maxrounds = -1)
@@ -612,6 +613,9 @@ testLayout <- function()
   print(bestEval)
   print(bestDigest) # layout can be reconstructed from this
   cat("Elapsed:", elapsedTimeToStr(), fill=T)
+  
+  digestToLayout(xx)
+  drawLayout(xx, debug=F)
 }
 
 #testLayout()
