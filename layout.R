@@ -622,22 +622,56 @@ testLayout <- function()
 
 testComplexLayout <- function()
 {
+  # here segments intersection w faces would work
   xx <- compose(tetrahedron, dual(tetrahedron))
+  F1 <- xx$faces[[1]]
+  F2 <- xx$faces[[5]]
+  F3 <- xx$faces[[6]]
+  
+  # for this one, segments interect faces not going to work,
+  # should get lines from faces through faces then check if pts
+  # if really are in the polygons and check whether they
+  # split existing segments
+  xx <- greatDodecahedron
+  F1 <- xx$faces[[4]]
+  F2 <- xx$faces[[1]]
+  F3 <- xx$faces[[9]]
   
   clear3d()
   drawPoly(xx, debug = T)
   
   rgl_init(new.device = T)
   #drawAxes()
-  F1 <- xx$faces[[1]]
-  drawPolygon(F1, xx$coords, alpha=0.7, label="F1", drawlines=T, drawvertices=T)
-  
-  F5 <- xx$faces[[5]]
-  drawPolygon(F5, xx$coords, alpha=0.7, label="F5", drawlines=T, drawvertices=T)
+  drawPolygon(F1, xx$coords, alpha=0.8, label=paste0("F",which(sapply(xx$faces, function(x){return(identical(x,F1))}))), drawlines=T, drawvertices=T)
+  drawPolygon(F2, xx$coords, alpha=0.8, label=paste0("F",which(sapply(xx$faces, function(x){return(identical(x,F2))}))), drawlines=T, drawvertices=T)
+  drawPolygon(F3, xx$coords, alpha=0.8, label=paste0("F",which(sapply(xx$faces, function(x){return(identical(x,F3))}))), drawlines=T, drawvertices=T)
   
   # get intersection line
   # http://geomalgorithms.com/a05-_intersect-1.html#intersect3D_2Planes()
   #
   # then intersect this with all segments
+  
+  #for (F2 in xx$faces) {
+    # intersection lines with all other planes
+    i <- intersect3D_2Planes(planeToNormalForm(F1, xx$coords), planeToNormalForm(F2, xx$coords))
+    if (i$status == "intersect") {
+      spheres3d(i$P0[1], i$P0[2], i$P0[3], color="red", radius = 0.01)
+      spheres3d(i$P1[1], i$P1[2], i$P1[3], color="red", radius = 0.01)
+      lines3d(c(i$P0[1],i$P1[1]), c(i$P0[2],i$P1[2]), c(i$P0[3], i$P1[3]), color="red")
+      
+      
+      #isect <- intersect2D_2Segments(i$P0, i$P1, xx$coords[], S2_P1)
+    }
+  #}
+  stop()
+  # intersection of these lines with the plane segments
+  # check if these intersections are still inside the polygons
+  S0 <- xx$coords[11,]
+  S1 <- xx$coords[3,]
+  mxA <- matrix(c(i$P1-i$P0, S0-S1),nrow = 3)
+  solve(mxA, S0-i$P0)
+  
+  # intersection of these lines with eachother 
+  # and test if these intersections are inside the polygons
   
 }

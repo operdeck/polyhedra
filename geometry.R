@@ -19,21 +19,7 @@
 
 # Mostly 2D and 3D geometry and linear algebra
 
-# shift elements from f up or down
-shiftrotate <- function(x, n = 1) {
-  if (n == 0) x else c(tail(x, -n), head(x, n))
-}
-
-# safe sequence from 1 to n - returning empty vector if it would be backwards
-safeseq <- function(n, by=1)
-{
-  if (n<1 & by>0) return(c())
-  if (n>1 & by<0) return(c())
-  return(seq(from=1, to=n, by=by))
-}
-
-# often used in polyhedra
-phi <- (1+sqrt(5))/2
+source("utils.R")
 
 crossproduct <- function(v1, v2){
   if (is.matrix(v1) & !is.matrix(v2)) {
@@ -48,13 +34,38 @@ crossproduct <- function(v1, v2){
     prodx = v1[2] * v2[3] - v2[2] * v1[3]
     prody = v2[1] * v1[3] - v1[1] * v2[3]
     prodz = v1[1] * v2[2] - v2[1] * v1[2]
-    return (c(prodx, prody, prodz))
+    return (c(x=prodx, y=prody, z=prodz))
   } else {
     prodx = v1[,2] * v2[,3] - v2[,2] * v1[,3]
     prody = v2[,1] * v1[,3] - v1[,1] * v2[,3]
     prodz = v1[,1] * v2[,2] - v2[,1] * v1[,2]
-    return (matrix(c(prodx, prody, prodz), ncol = 3))
+    return (matrix(c(x=prodx, y=prody, z=prodz), ncol = 3))
   }
+}
+
+# Dot product of two vectors, also works when both are (same size) matrices
+dotproduct <- function(a, b)
+{
+  if (is.matrix(a)) {
+    if (is.matrix(b)) {
+      return (rowSums(a*b)) # both are a matrix
+    } else {
+      return (rowSums(matrix(rep(b,nrow(a)),nrow=nrow(a),byrow=T) * a))
+    }
+  } else {
+    if (is.matrix(b)) {
+      return (rowSums(matrix(rep(a,nrow(b)),nrow=nrow(b),byrow=T) * b))
+    } else {
+      return (sum(a*b)) # both not a matrix
+    }
+  }
+}
+
+# Perp product (2D only), no matrix support at the moment
+perpproduct <- function(a, b)
+{
+  if (is.matrix(a) | is.matrix(b)) stop("No matrix support for perp currently")
+  return(a[1]*b[2] - a[2]*b[1])  
 }
 
 # Length of point p passed in as a vector of values
@@ -209,3 +220,199 @@ isPointInFace <- function(P, Face)
   }
   return(wn != 0)
 }
+
+#' Find the 3D intersection of two planes
+#' From Dan Sunday's code in http://geomalgorithms.com/a05-_intersect-1.html#intersect3D_2Planes()
+#' 
+#' @param Pn1 Plane 1 in normal representation (list with normal n and a point V0)
+#' @param Pn2 Plan2 2 in normal representation (list with normal n and a point V0)
+#'
+#' @return List with status = "disjoint"|"coincide"|"intersect" and P0, P1 defining the intersection line
+intersect3D_2Planes <- function(Pn1, Pn2)
+{
+  u <- crossproduct(Pn1$n, Pn2$n)
+  
+  ax <- ifelse(u[1] >= 0, u[1], -u[1])
+  ay <- ifelse(u[2] >= 0, u[2], -u[2])
+  az <- ifelse(u[3] >= 0, u[3], -u[3])
+  
+  # test if the two planes are parallel
+  if (deltaEquals(0, ax+ay+az)) {     # Pn1 and Pn2 are near parallel
+    # test if disjoint or coincide
+    v <- Pn2$V0 - Pn1$V0
+    if (deltaEquals(0, dotproduct(Pn1$n, v))) {          # Pn2$V0 lies in Pn1
+      return (list(status = "coincide"))
+    } else {
+      return (list(status = "disjoint"))
+    }
+  }
+  
+  # Pn1 and Pn2 intersect in a line
+  # first determine max abs coordinate of cross product
+  if (ax > ay) {
+    if (ax > az) {
+      maxc <- 1
+    } else {
+      maxc <- 3
+    }
+  } else {
+    if (ay > az) {
+      maxc <- 2
+    } else {
+      maxc <- 3
+    }
+  }
+  
+  # next, to get a point on the intersect line
+  # zero the max coord, and solve for the other two
+  d1 <- -dotproduct(Pn1$n, Pn1$V0) # note: could be pre-stored  with plane
+  d2 <- -dotproduct(Pn2$n, Pn2$V0) # ditto
+  
+  if (maxc == 1) {   # intersect with x=0
+    P0 <- c(x = 0, y = (d2*Pn1$n[3] - d1*Pn2$n[3]) / u[1], z = (d1*Pn2$n[2] - d2*Pn1$n[2]) / u[1])
+  } else if (maxc == 2) { # intersect with y=0
+    P0 <- c(x = (d1*Pn2$n[3] - d2*Pn1$n[3]) / u[2], y = 0, z = (d2*Pn1$n[1] - d1*Pn2$n[1]) / u[2])
+  } else if (maxc == 3) { # intersect with z=0
+    P0 <- c(x = (d2*Pn1$n[2] - d1*Pn2$n[2]) / u[3], y = (d1*Pn2$n[1] - d2*Pn1$n[1]) / u[3], z = 0)
+  }
+  
+  return (list(status = "intersect", P0=P0, P1=P0+u))
+}
+
+# Helper function to check if a point P is inside a collinear segment defined by two points
+# returns TRUE if P is inside segment, FALSE otherwise
+isInSegment_2D <- function(P, S_P0, S_P1)
+{
+  if (S_P0[1] != S_P1[1]) {    # S is not  vertical
+    if (S_P0[1] <= P[1] && P[1] <= S_P1[1])
+      return (TRUE)
+    if (S_P0[1] >= P[1] && P[1] >= S_P1[1])
+      return (TRUE)
+  }
+  else {    # S is vertical, so test y  coordinate
+    if (S_P0[2] <= P[2] && P[2] <= S_P1[2])
+      return (TRUE)
+    if (S_P0[2] >= P[2] && P[2] >= S_P1[2])
+      return (TRUE)
+  }
+  return (FALSE)
+}
+
+#' Find the 2D intersection of 2 finite segments
+#' TODO: add argument to make S1 a line not a segment
+#' TODO: fix to work in 3d selecting coordinate pair
+#' Sunday says
+#' But if they intersect, then their linear projections onto a 2D plane will also intersect. So, 
+#' one can simply restrict to two coordinates, for which u and v are not parallel, compute the 
+#' 2D intersection point I at P(sI) and Q(tI) for those two coordinates, and then test 
+#' if P(sI) = Q(tI) for all coordinates.
+#' 
+#' @param S1_P0 One vertex of segment/line 1 as 2 coordinates (x/y, x/z or y/z)
+#' @param S1_P1 Other vertex of segment/line 1
+#' @param S2_P0 One vertex of segment 2
+#' @param S2_P1 Other vertex of segment 2
+#'
+#' @return List with status="disjoint"|"intersect"|"overlap" and I0, I1 intersection/overlap points
+intersect2D_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
+{
+  u <- S1_P1 - S1_P0
+  v <- S2_P1 - S2_P0
+  w <- S1_P0 - S2_P0
+  D <- perpproduct(u,v)
+  
+  # test if  they are parallel (includes either being a point)
+  if (deltaEquals(0, abs(D))) {           # S1 and S2 are parallel
+    if (perpproduct(u,w) != 0 || perpproduct(v,w) != 0)  {
+      return(list(status="disjoint"))                    # they are NOT collinear
+    }
+    
+    # they are collinear or degenerate
+    # check if they are degenerate  points
+    du <- dotproduct(u,u)
+    dv <- dotproduct(v,v)
+    if (deltaEquals(0,du) && deltaEquals(0,dv)) { # both segments are points
+      if (!deltaEquals(S1_P0[1], S2_P0[1]) | !deltaEquals(S1_P0[2], S2_P0[2])) {         
+        # they are distinct  points
+        return(list(status="disjoint"))
+      }
+      # they are the same point
+      return(list(status="intersect", I0=S1_P0))
+    }
+    
+    if (deltaEquals(0,du)) { # S1 is a single point
+      if  (!isInSegment_2D(S1_P0, S2_P0, S2_P1)) {  # but is not in S2
+        return(list(status="disjoint"))
+      }
+      return(list(status="intersect", I0=S1_P0))
+    }
+    
+    if (deltaEquals(0,dv)) { # S2 a single point
+      if  (!isInSegment_2D(S2_P0, S1_P0, S1_P1)) { # but is not in S1
+        return(list(status="disjoint"))
+      }
+      return(list(status="intersect", I0=S2_P0))
+    }
+    
+    # they are collinear segments - get  overlap (or not)
+    w2 <- S1_P1 - S2_P0
+    if (!deltaEquals(v[1], 0)) {
+      t0 <- w[1] / v[1]
+      t1 <- w2[1] / v[1]
+    } else {
+      t0 <- w[2] / v[2]
+      t1 <- w2[2] / v[2]
+    }
+    
+    #
+    # TODO: here something in case S1 is a line, not a segment
+    #
+    
+    if (t0 > t1) {                   # must have t0 smaller than t1
+      t <- t0 # swap
+      t0 <- t1
+      t1 <- t
+    }
+    if (t0 > 1 || t1 < 0) {
+      return(list(status="disjoint"))     # NO overlap
+    }
+    t0 <- ifelse(t0<0, 0, t0)   # clip to min 0
+    t1 <- ifelse(t1>1, 1, t1)   # clip to max 1
+    if (deltaEquals(t0, t1)) {  # intersect is a point
+      return(list(status="intersect", I0=S2_P0 +  t0 * v))
+    }
+    
+    # they overlap in a valid subsegment
+    return(list(status="overlap", I0=S2_P0 + t0 * v, I1=S2_P0 + t1 * v))
+  }
+  
+  # the segments are skew and may intersect in a point
+  # get the intersect parameter for S1
+  sI <- perpproduct(v,w) / D
+  if (!firstIsLine) {
+    if (sI < 0 || sI > 1) {                # no intersect with S1
+      return(list(status="disjoint"))
+    }
+  }
+
+  # get the intersect parameter for S2
+  tI <- perpproduct(u,w) / D
+  if (tI < 0 || tI > 1) {                # no intersect with S2
+    return(list(status="disjoint"))
+  }
+  
+  # compute S1 intersect point
+  return(list(status="intersect", I0=S1_P0 + sI * u))
+}
+
+#' Create normal implicit representation of a plane defined by three vertices.
+#'
+#' @param face Coordinate indices of a face
+#' @param coords x, y, z values of all coordinates
+#'
+#' @return a list with n = the normal and V0 = one of the vertices
+planeToNormalForm <- function(face, coords)
+{
+  return(list(n = normal(coords[face[1],], coords[face[2],], coords[face[3],]), V0 = coords[face[1],]))    
+}
+
+

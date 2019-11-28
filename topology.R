@@ -139,8 +139,6 @@ topology <- function(p, debug=F)
     }
   }
 
-  # TODO change to something that create methods call in the end
-  
   return (list(coordPairToEdge=coordPairToEdge, 
                coordPairToFaces=coordPairToFaces,
                edgeToFaces=edgeToFaces,

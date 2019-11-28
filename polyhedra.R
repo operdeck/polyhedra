@@ -585,6 +585,22 @@ icosahedron <- buildRegularPoly(coords = rbind(expand.grid(x = 0, y = c(-1,1), z
 
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
 
+greatDodecahedron <- buildRegularPoly(coords = icosahedron$coords, 
+                                      polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6),
+                                      name = "Great Dodecahedron")
+smallStellatedDodecahedron <- buildRegularPoly(icosahedron$coords,
+                                               polygonsize = 5,
+                                               vertexsize = 5,
+                                               exampleEdge = c(1,7),
+                                               name = "Small Stellated Dodecahedron")
+greatIcosahedron <- buildRegularPoly(icosahedron$coords,
+                                     polygonsize = 3,
+                                     vertexsize = 5,
+                                     exampleEdge = c(2, 6),
+                                     name = "Great Icosahedron")
+greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", 
+                                   scaling = "vertex")
+
 testDescription <- function()
 {
   description(octahedron)
