@@ -666,12 +666,30 @@ testComplexLayout <- function()
   stop()
   # intersection of these lines with the plane segments
   # check if these intersections are still inside the polygons
+  # below is for dodecahedron
   S0 <- xx$coords[11,]
   S1 <- xx$coords[3,]
-  mxA <- matrix(c(i$P1-i$P0, S0-S1),nrow = 3)
-  solve(mxA, S0-i$P0)
+  # now we want to find intersection of i with segment 11-3 (for example)
+  # this should give one point, 11
+  # with dodecahedron for example, 
+  # intersect with [3-11] gives a single pt
   
-  # intersection of these lines with eachother 
+  for (n in seq(length(F1))) {
+    S0 <- xx$coords[F1[n],]
+    S1 <- xx$coords[shiftrotate(F1)[n],]
+    
+    i_seg <- intersect_2Segments(i$P0, i$P1, S0, S1, firstIsLine = T)
+    if (i_seg$status == "intersect") {
+      spheres3d(i_seg$I0[1], i_seg$I0[2], i_seg$I0[3], color="blue", radius = 0.07)
+    }
+  }
+  
+  # do the same for the other face
+  # if there are only 2 intersections assume a line through them
+  # otherwise counting magic
+  
+  
+  # then, intersect all those new face segments with eachother
   # and test if these intersections are inside the polygons
   
 }

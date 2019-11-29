@@ -299,8 +299,8 @@ isInSegment_2D <- function(P, S_P0, S_P1)
 }
 
 #' Find the 2D intersection of 2 finite segments
-#' TODO: add argument to make S1 a line not a segment
-#' TODO: fix to work in 3d selecting coordinate pair
+#' TODO: add check P(sI) = Q(tI) for all coordinates otherwise "disjoint" with substatus is previous
+#' 
 #' Sunday says
 #' But if they intersect, then their linear projections onto a 2D plane will also intersect. So, 
 #' one can simply restrict to two coordinates, for which u and v are not parallel, compute the 
@@ -313,54 +313,65 @@ isInSegment_2D <- function(P, S_P0, S_P1)
 #' @param S2_P1 Other vertex of segment 2
 #'
 #' @return List with status="disjoint"|"intersect"|"overlap" and I0, I1 intersection/overlap points
-intersect2D_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
+intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
 {
   u <- S1_P1 - S1_P0
   v <- S2_P1 - S2_P0
-  w <- S1_P0 - S2_P0
-  D <- perpproduct(u,v)
+
+  # the rest of the function works with a projection on just 2 dimensions
+  # we try to choose them such that u and v are not parallel
+  for (dims in list(1:2,2:3,c(1,3))) {
+    S1_P0_projection <- S1_P0[dims]
+    S1_P1_projection <- S1_P1[dims]
+    S2_P0_projection <- S2_P0[dims]
+    S2_P1_projection <- S2_P1[dims]
+    u_projection <- u[dims]
+    v_projection <- v[dims]
+    D <- perpproduct(u_projection,v_projection)
+    if (!deltaEquals(0, abs(D))) break
+  }
+
+  w <- S1_P0_projection - S2_P0_projection
   
   # test if  they are parallel (includes either being a point)
   if (deltaEquals(0, abs(D))) {           # S1 and S2 are parallel
-    if (perpproduct(u,w) != 0 || perpproduct(v,w) != 0)  {
-      return(list(status="disjoint"))                    # they are NOT collinear
+    if (perpproduct(u_projection,w) != 0 || perpproduct(v_projection,w) != 0)  {
+      return(list(status="disjoint", dims=dims, substatus="parallel, not collinear"))
     }
     
     # they are collinear or degenerate
     # check if they are degenerate  points
-    du <- dotproduct(u,u)
-    dv <- dotproduct(v,v)
+    du <- dotproduct(u_projection,u_projection)
+    dv <- dotproduct(v_projection,v_projection)
     if (deltaEquals(0,du) && deltaEquals(0,dv)) { # both segments are points
-      if (!deltaEquals(S1_P0[1], S2_P0[1]) | !deltaEquals(S1_P0[2], S2_P0[2])) {         
-        # they are distinct  points
-        return(list(status="disjoint"))
+      if (!deltaEquals(S1_P0_projection[1], S2_P0_projection[1]) | !deltaEquals(S1_P0_projection[2], S2_P0_projection[2])) {         
+        return(list(status="disjoint", dims=dims, substatus="distinct points"))
       }
-      # they are the same point
-      return(list(status="intersect", I0=S1_P0))
+      return(list(status="intersect", dims=dims, substatus="same point", I0=S1_P0))
     }
     
     if (deltaEquals(0,du)) { # S1 is a single point
-      if  (!isInSegment_2D(S1_P0, S2_P0, S2_P1)) {  # but is not in S2
-        return(list(status="disjoint"))
+      if  (!isInSegment_2D(S1_P0_projection, S2_P0_projection, S2_P1_projection)) {  # but is not in S2
+        return(list(status="disjoint", dims=dims, substatus="S1 is single point"))
       }
-      return(list(status="intersect", I0=S1_P0))
+      return(list(status="intersect", dims=dims, I0=S1_P0))
     }
     
     if (deltaEquals(0,dv)) { # S2 a single point
-      if  (!isInSegment_2D(S2_P0, S1_P0, S1_P1)) { # but is not in S1
-        return(list(status="disjoint"))
+      if  (!isInSegment_2D(S2_P0_projection, S1_P0_projection, S1_P1_projection)) { # but is not in S1
+        return(list(status="disjoint", dims=dims, substatus="S2 is single point"))
       }
-      return(list(status="intersect", I0=S2_P0))
+      return(list(status="intersect", dims=dims, I0=S2_P0))
     }
     
     # they are collinear segments - get  overlap (or not)
-    w2 <- S1_P1 - S2_P0
-    if (!deltaEquals(v[1], 0)) {
-      t0 <- w[1] / v[1]
-      t1 <- w2[1] / v[1]
+    w2 <- S1_P1_projection - S2_P0_projection
+    if (!deltaEquals(v_projection[1], 0)) {
+      t0 <- w[1] / v_projection[1]
+      t1 <- w2[1] / v_projection[1]
     } else {
-      t0 <- w[2] / v[2]
-      t1 <- w2[2] / v[2]
+      t0 <- w[2] / v_projection[2]
+      t1 <- w2[2] / v_projection[2]
     }
     
     #
@@ -372,36 +383,36 @@ intersect2D_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
       t0 <- t1
       t1 <- t
     }
-    if (t0 > 1 || t1 < 0) {
-      return(list(status="disjoint"))     # NO overlap
+    if ((t0 > 1 & !deltaEquals(1, t0)) || (t1 < 0 & !deltaEquals(0, t1))) {
+      return(list(status="disjoint", dims=dims, substatus="no overlap"))
     }
     t0 <- ifelse(t0<0, 0, t0)   # clip to min 0
     t1 <- ifelse(t1>1, 1, t1)   # clip to max 1
     if (deltaEquals(t0, t1)) {  # intersect is a point
-      return(list(status="intersect", I0=S2_P0 +  t0 * v))
+      return(list(status="intersect", dims=dims, I0=S2_P0 +  t0 * v))
     }
     
     # they overlap in a valid subsegment
-    return(list(status="overlap", I0=S2_P0 + t0 * v, I1=S2_P0 + t1 * v))
+    return(list(status="overlap", dims=dims, I0=S2_P0 + t0 * v, I1=S2_P0 + t1 * v))
   }
   
   # the segments are skew and may intersect in a point
   # get the intersect parameter for S1
-  sI <- perpproduct(v,w) / D
+  sI <- perpproduct(v_projection,w) / D
   if (!firstIsLine) {
-    if (sI < 0 || sI > 1) {                # no intersect with S1
-      return(list(status="disjoint"))
+    if ((sI < 0 & !deltaEquals(0, sI)) || (sI > 1 & !deltaEquals(1, sI))) {
+      return(list(status="disjoint", dims=dims, substatus="no intersect with S1"))
     }
   }
 
   # get the intersect parameter for S2
-  tI <- perpproduct(u,w) / D
-  if (tI < 0 || tI > 1) {                # no intersect with S2
-    return(list(status="disjoint"))
+  tI <- perpproduct(u_projection,w) / D
+  if ((tI < 0 & !deltaEquals(0, tI)) || (tI > 1 & !deltaEquals(1, tI))) {
+    return(list(status="disjoint", dims=dims, substatus="no intersect with S2"))
   }
   
   # compute S1 intersect point
-  return(list(status="intersect", I0=S1_P0 + sI * u))
+  return(list(status="intersect", dims=dims, I0=S1_P0 + sI * u))
 }
 
 #' Create normal implicit representation of a plane defined by three vertices.
