@@ -3,6 +3,8 @@ context("Geometry")
 test_that("segment intersection", {
   
   # two overlapping segments
+  # TODO can easiy add a test when not in the same plane by changing z=0 for one of them
+  # overlap now can become intersect - not that trivial? Or is that addressed by choice of dim?
   seg1 <- matrix( c( c(1, 0, 0), c(3, 0, 0) ), ncol=3, byrow = T )
   seg2 <- matrix( c( c(2, 0, 0), c(4, 0, 0) ), ncol=3, byrow = T )
   isect <- intersect_2Segments(seg1[1,], seg1[2,], seg2[1,], seg2[2,])

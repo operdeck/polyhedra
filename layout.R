@@ -224,7 +224,7 @@ addFaceToLayout <- function(face2D, polyhedron3D, level)
   shiftFacePoints <- shiftrotate(face2D$vexReferences)
   newEdges <- sapply(seq(length(face2D$vexReferences)), function(i) {
     return(polyhedron3D$coordPairToEdge[face2D$vexReferences[i],shiftFacePoints[i]])
-    })
+  })
   if (level > 1) {
     layout2D[[level]]$layoutCandidateEdges <<-
       setdiff(c(newEdges, layout2D[[level-1]]$layoutCandidateEdges), intersect(layout2D[[level-1]]$layoutCandidateEdges, newEdges))
@@ -651,43 +651,73 @@ testComplexLayout <- function()
   #
   # then intersect this with all segments
   
-  #for (F2 in xx$faces) {
-    # intersection lines with all other planes
+  allIntersectionSegments <- list()
+  for (F2 in xx$faces) {
+    # find intersection lines of plane of F1 with all other planes
     i <- intersect3D_2Planes(planeToNormalForm(F1, xx$coords), planeToNormalForm(F2, xx$coords))
     if (i$status == "intersect") {
       spheres3d(i$P0[1], i$P0[2], i$P0[3], color="red", radius = 0.01)
       spheres3d(i$P1[1], i$P1[2], i$P1[3], color="red", radius = 0.01)
       lines3d(c(i$P0[1],i$P1[1]), c(i$P0[2],i$P1[2]), c(i$P0[3], i$P1[3]), color="red")
       
+      # Find all intersections of this line with the primary face
+      intersectionPoints <- list()
+      for (n in seq(length(F1))) {
+        S0 <- xx$coords[F1[n],]
+        S1 <- xx$coords[shiftrotate(F1)[n],]
+        
+        i_seg <- intersect_2Segments(i$P0, i$P1, S0, S1, firstIsLine = T)
+        if (i_seg$status == "intersect") {
+          # not list coords twice
+          isNewPoint <- T
+          if (length(intersectionPoints) >= 1) {
+            for (p in seq(length(intersectionPoints))) {
+              if (deltaEquals(i_seg$I0[1], intersectionPoints[[p]]$x)) {
+                if (deltaEquals(i_seg$I0[2], intersectionPoints[[p]]$y)) {
+                  if (deltaEquals(i_seg$I0[3], intersectionPoints[[p]]$z)) {
+                    isNewPoint <- F
+                    break
+                  }  
+                }  
+              }  
+            }
+          }
+          if (isNewPoint) {
+            intersectionPoints[[1+length(intersectionPoints)]] <-
+              data.table(x = i_seg$I0[1],
+                         y = i_seg$I0[2],
+                         z = i_seg$I0[3])
+          }
+          spheres3d(i_seg$I0[1], i_seg$I0[2], i_seg$I0[3], color="blue", radius = 0.07)
+        }
+      }
+      # For now assume there are just 2 intersection points of the line with the face
+      # TODO this is not true in general. We should check the other face(s) as well and 
+      # define the intersection segments as those that are inside both polygons. There may
+      # even be multiple segments from one line (at least in theory).
       
-      #isect <- intersect2D_2Segments(i$P0, i$P1, xx$coords[], S2_P1)
-    }
-  #}
-  stop()
-  # intersection of these lines with the plane segments
-  # check if these intersections are still inside the polygons
-  # below is for dodecahedron
-  S0 <- xx$coords[11,]
-  S1 <- xx$coords[3,]
-  # now we want to find intersection of i with segment 11-3 (for example)
-  # this should give one point, 11
-  # with dodecahedron for example, 
-  # intersect with [3-11] gives a single pt
-  
-  for (n in seq(length(F1))) {
-    S0 <- xx$coords[F1[n],]
-    S1 <- xx$coords[shiftrotate(F1)[n],]
-    
-    i_seg <- intersect_2Segments(i$P0, i$P1, S0, S1, firstIsLine = T)
-    if (i_seg$status == "intersect") {
-      spheres3d(i_seg$I0[1], i_seg$I0[2], i_seg$I0[3], color="blue", radius = 0.07)
+      # do the same for the other face
+      # if there are only 2 intersections assume a line through them
+      # otherwise counting magic
+      
+      if (length(intersectionPoints) != 2) stop("Assuming exactly 2 intersections with primary face")
+      intersectionPointsTable <- rbindlist(intersectionPoints)
+      # TODO avoid duplicate segments
+      allIntersectionSegments[[1+length(allIntersectionSegments)]] <- 
+        data.table( primaryFace = which(sapply(xx$faces, identical, F1)),
+                    intersectFace = which(sapply(xx$faces, identical, F2)),
+                    P0_x = intersectionPointsTable$x[1],
+                    P0_y = intersectionPointsTable$y[1],
+                    P0_z = intersectionPointsTable$z[1],
+                    P1_x = intersectionPointsTable$x[2],
+                    P1_y = intersectionPointsTable$y[2],
+                    P1_z = intersectionPointsTable$z[2])
     }
   }
   
-  # do the same for the other face
-  # if there are only 2 intersections assume a line through them
-  # otherwise counting magic
-  
+  apply(rbindlist(allIntersectionSegments), 1, function(seg) {
+    lines3d(c(seg[3],seg[6]), c(seg[4],seg[7]), c(seg[5], seg[8]), color="blue")  
+  })
   
   # then, intersect all those new face segments with eachother
   # and test if these intersections are inside the polygons
