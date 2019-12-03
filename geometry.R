@@ -361,7 +361,8 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
       if  (!isInSegment_2D(S2_P0_projection, S1_P0_projection, S1_P1_projection)) { # but is not in S1
         return(list(status="disjoint", dims=dims, substatus="S2 is single point"))
       }
-      return(list(status="intersect", dims=dims, I0=S2_P0))
+      return(list(status="intersect", dims=dims, I0=S2_P0,
+                  isS2_P0=T, isS2_P1=T))
     }
     
     # they are collinear segments - get  overlap (or not)
@@ -389,7 +390,8 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
     t0 <- ifelse(t0<0, 0, t0)   # clip to min 0
     t1 <- ifelse(t1>1, 1, t1)   # clip to max 1
     if (deltaEquals(t0, t1)) {  # intersect is a point
-      return(list(status="intersect", dims=dims, I0=S2_P0 +  t0 * v))
+      return(list(status="intersect", dims=dims, I0=S2_P0 +  t0 * v,
+                  isS2_P0=deltaEquals(0, t0), isS2_P1=deltaEquals(1, t0)))
     }
     
     # they overlap in a valid subsegment
@@ -412,7 +414,8 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   }
   
   # compute S1 intersect point
-  return(list(status="intersect", dims=dims, I0=S1_P0 + sI * u))
+  return(list(status="intersect", dims=dims, I0=S1_P0 + sI * u, I0_test=S2_P0 + tI * v, # _test should be the same value
+              isS2_P0=deltaEquals(0, tI), isS2_P1=deltaEquals(1, tI)))
 }
 
 #' Create normal implicit representation of a plane defined by three vertices.
