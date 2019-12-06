@@ -643,7 +643,7 @@ allFaceIntersections <- function(poly)
   intersectionLines <- rbindlist(apply(facePairs[,!isEdgeConnected], 2, function(facepair) {
     i <- intersect3D_2Planes(planeToNormalForm(poly$faces[[facepair[1]]], poly$coords), 
                              planeToNormalForm(poly$faces[[facepair[2]]], poly$coords))
-    if (i$status == "intersect") {
+    if (i$status == "intersect" & (facepair[1]==1 | facepair[2]==1)) {
       return(data.table(F1=facepair[1], F2=facepair[2], 
                         P0_x=i$P0[1], P0_y=i$P0[2], P0_z=i$P0[3], 
                         P1_x=i$P1[1], P1_y=i$P1[2], P1_z=i$P1[3]))
@@ -669,6 +669,10 @@ allFaceIntersections <- function(poly)
       i_seg <- intersect_2Segments(c(intersectionLines[i]$P0_x, intersectionLines[i]$P0_y, intersectionLines[i]$P0_z), 
                                    c(intersectionLines[i]$P1_x, intersectionLines[i]$P1_y, intersectionLines[i]$P1_z), 
                                    c[j,], c[next_idx[j],], firstIsLine = T)
+      
+      if (intersectionLines[i]$F2==4) {
+        print(i_seg)
+      }
       if (i_seg$status == "intersect") {
         if (is.null(intersectionSegmentP0)) {
           intersectionSegmentP0 <- i_seg$I0
@@ -686,7 +690,7 @@ allFaceIntersections <- function(poly)
                       S1_x=intersectionSegmentP1[1], S1_y=intersectionSegmentP1[2], S1_z=intersectionSegmentP1[3]))
   }))
   
-  return(intersectionSegments)
+  return(merge(intersectionSegments, intersectionLines, by=c("F1","F2"))) # merge only for debug
 }
 
 # Find segment end points for the intersection of a line with one polygon
@@ -698,24 +702,40 @@ hull <- function(poly)
   
   segments <- allFaceIntersections(poly)
   
+  # Bug with greatDodecahedron
+  # primary face 1
+  
   clear3d()
   primaryFace <- 1
   for (i in unique(unlist(segments[F1 == primaryFace | F2 == primaryFace,1:2]))) {
     if (i == primaryFace) {
-      drawPolygon(poly$faces[[i]], poly$coords, alpha=0.5, col = "yellow", label=fToStr(i), drawlines=T, drawvertices=T)
+      #drawPolygon(poly$faces[[i]], poly$coords, alpha=0.5, col = "yellow", label=fToStr(i), drawlines=T, drawvertices=T)
     } else {
-      drawPolygon(poly$faces[[i]], poly$coords, alpha=0.3, col = "grey", label=fToStr(i), drawlines=T, drawvertices=T)
+      #drawPolygon(poly$faces[[i]], poly$coords, alpha=0.3, col = "grey", label=fToStr(i), drawlines=T, drawvertices=T)
     }
   }
   for (i in which(segments$F1 == primaryFace | segments$F2 == primaryFace))  {
     # for debugging only:  
     spheres3d(segments[i]$S0_x, segments[i]$S0_y, segments[i]$S0_z, color="red", radius = 0.03)
     spheres3d(segments[i]$S1_x, segments[i]$S1_y, segments[i]$S1_z, color="red", radius = 0.03)
+
+    lines3d(c(segments[i]$P0_x, segments[i]$P1_x), 
+            c(segments[i]$P0_y, segments[i]$P1_y), 
+            c(segments[i]$P0_z, segments[i]$P1_z), 
+            color="red")
+    text3d(mean(c(segments[i]$P0_x, segments[i]$P1_x)), 
+            mean(c(segments[i]$P0_y, segments[i]$P1_y)), 
+            mean(c(segments[i]$P0_z, segments[i]$P1_z)), 
+            color="red",text=paste(segments[i]$F1,segments[i]$F2,sep = "-"))
     
-    lines3d(c(segments[i]$S0_x, segments[i]$S1_x), 
-            c(segments[i]$S0_y, segments[i]$S1_y), 
-            c(segments[i]$S0_z, segments[i]$S1_z), 
+    lines3d(0.01+c(segments[i]$S0_x, segments[i]$S1_x), 
+            0.01+c(segments[i]$S0_y, segments[i]$S1_y), 
+            0.01+c(segments[i]$S0_z, segments[i]$S1_z), 
             color="blue")
+    text3d(0.01+mean(c(segments[i]$S0_x, segments[i]$S1_x)), 
+            0.01+mean(c(segments[i]$S0_y, segments[i]$S1_y)), 
+            0.01+mean(c(segments[i]$S0_z, segments[i]$S1_z)), 
+            color="blue", text=paste(segments[i]$F1,segments[i]$F2,sep = "-"))
     
   }
   

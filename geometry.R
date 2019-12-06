@@ -279,25 +279,6 @@ intersect3D_2Planes <- function(Pn1, Pn2)
   return (list(status = "intersect", P0=P0, P1=P0+u))
 }
 
-# Helper function to check if a point P is inside a collinear segment defined by two points
-# returns TRUE if P is inside segment, FALSE otherwise
-isInSegment_2D <- function(P, S_P0, S_P1)
-{
-  if (S_P0[1] != S_P1[1]) {    # S is not  vertical
-    if (S_P0[1] <= P[1] && P[1] <= S_P1[1])
-      return (TRUE)
-    if (S_P0[1] >= P[1] && P[1] >= S_P1[1])
-      return (TRUE)
-  }
-  else {    # S is vertical, so test y  coordinate
-    if (S_P0[2] <= P[2] && P[2] <= S_P1[2])
-      return (TRUE)
-    if (S_P0[2] >= P[2] && P[2] >= S_P1[2])
-      return (TRUE)
-  }
-  return (FALSE)
-}
-
 #' Find the 2D intersection of 2 finite segments
 #' TODO: add check P(sI) = Q(tI) for all coordinates otherwise "disjoint" with substatus is previous
 #' 
@@ -313,8 +294,41 @@ isInSegment_2D <- function(P, S_P0, S_P1)
 #' @param S2_P1 Other vertex of segment 2
 #'
 #' @return List with status="disjoint"|"intersect"|"overlap" and I0, I1 intersection/overlap points
+#' when intersect result is a single point, when overlap two otherwise none
 intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
 {
+  # Helper function to check if a point P is inside a collinear segment defined by two points
+  # returns TRUE if P is inside segment, FALSE otherwise
+  isInSegment_2D <- function(P, S_P0, S_P1)
+  {
+    if (S_P0[1] != S_P1[1]) {    # S is not  vertical
+      if (deltaEquals(S_P0[1], P[1])) return (TRUE)
+      if (deltaEquals(S_P1[1], P[1])) return (TRUE)
+      if (S_P0[1] <= P[1] && P[1] <= S_P1[1]) return (TRUE)
+      if (S_P0[1] >= P[1] && P[1] >= S_P1[1]) return (TRUE)
+    }
+    else {    # S is vertical, so test y  coordinate
+      if (deltaEquals(S_P0[2], P[2])) return (TRUE)
+      if (deltaEquals(S_P1[2], P[2])) return (TRUE)
+      if (S_P0[2] <= P[2] && P[2] <= S_P1[2]) return (TRUE)
+      if (S_P0[2] >= P[2] && P[2] >= S_P1[2]) return (TRUE)
+    }
+    return (FALSE)
+  }
+  
+  buildResult <- function(status, dims, substatus="",
+                          I0=NULL, I1=NULL, I0_check=NULL, I1_check=NULL) 
+  {
+    # todo check I0/I1 check changing overlap/intersection to something else potentially
+    if (!is.null(I0)) {
+      if (!is.null(I1)) {
+        return (list(status=status, I0=I0, I1=I1, dims=dims, substatus=substatus))
+      }
+      return (list(status=status, I0=I0, dims=dims, substatus=substatus))
+    }
+    return (list(status=status, dims=dims, substatus=substatus))
+  }
+  
   u <- S1_P1 - S1_P0
   v <- S2_P1 - S2_P0
 
@@ -336,33 +350,32 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   # test if  they are parallel (includes either being a point)
   if (deltaEquals(0, abs(D))) {           # S1 and S2 are parallel
     if (perpproduct(u_projection,w) != 0 || perpproduct(v_projection,w) != 0)  {
-      return(list(status="disjoint", dims=dims, substatus="parallel, not collinear"))
+      return(buildResult("disjoint", dims=dims, substatus="parallel, not collinear"))
     }
     
-    # they are collinear or degenerate
+    # they are co-linear or degenerate
     # check if they are degenerate  points
     du <- dotproduct(u_projection,u_projection)
     dv <- dotproduct(v_projection,v_projection)
     if (deltaEquals(0,du) && deltaEquals(0,dv)) { # both segments are points
       if (!deltaEquals(S1_P0_projection[1], S2_P0_projection[1]) | !deltaEquals(S1_P0_projection[2], S2_P0_projection[2])) {         
-        return(list(status="disjoint", dims=dims, substatus="distinct points"))
+        return(buildResult("disjoint", dims=dims, substatus="distinct points"))
       }
-      return(list(status="intersect", dims=dims, substatus="same point", I0=S1_P0))
+      return(buildResult("intersect", dims=dims, substatus="both same single point", I0=S1_P0))
     }
     
     if (deltaEquals(0,du)) { # S1 is a single point
       if  (!isInSegment_2D(S1_P0_projection, S2_P0_projection, S2_P1_projection)) {  # but is not in S2
-        return(list(status="disjoint", dims=dims, substatus="S1 is single point"))
+        return(buildResult("disjoint", dims=dims, substatus="S1 is single point"))
       }
-      return(list(status="intersect", dims=dims, I0=S1_P0))
+      return(buildResult("intersect", dims=dims, substatus="S1 single point", I0=S1_P0))
     }
     
     if (deltaEquals(0,dv)) { # S2 a single point
-      if  (!isInSegment_2D(S2_P0_projection, S1_P0_projection, S1_P1_projection)) { # but is not in S1
-        return(list(status="disjoint", dims=dims, substatus="S2 is single point"))
+      if  (!firstIsLine & !isInSegment_2D(S2_P0_projection, S1_P0_projection, S1_P1_projection)) { # but is not in S1
+        return(buildResult("disjoint", dims=dims, substatus="S2 is single point"))
       }
-      return(list(status="intersect", dims=dims, I0=S2_P0,
-                  isS2_P0=T, isS2_P1=T))
+      return(buildResult("intersect", dims=dims, substatus="S2 single point", I0=S2_P0))
     }
     
     # they are collinear segments - get  overlap (or not)
@@ -375,27 +388,24 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
       t1 <- w2[2] / v_projection[2]
     }
     
-    #
-    # TODO: here something in case S1 is a line, not a segment
-    #
-    
     if (t0 > t1) {                   # must have t0 smaller than t1
       t <- t0 # swap
       t0 <- t1
       t1 <- t
     }
-    if ((t0 > 1 & !deltaEquals(1, t0)) || (t1 < 0 & !deltaEquals(0, t1))) {
-      return(list(status="disjoint", dims=dims, substatus="no overlap"))
+    if (!firstIsLine & ((t0 > 1 & !deltaEquals(1, t0)) || (t1 < 0 & !deltaEquals(0, t1)))) {
+      return(buildResult("disjoint", dims=dims, substatus="no overlap"))
     }
-    t0 <- ifelse(t0<0, 0, t0)   # clip to min 0
-    t1 <- ifelse(t1>1, 1, t1)   # clip to max 1
+    t0 <- max(0, t0)   # clip to min 0
+    t1 <- min(1, t1)   # clip to max 1
     if (deltaEquals(t0, t1)) {  # intersect is a point
-      return(list(status="intersect", dims=dims, I0=S2_P0 +  t0 * v,
-                  isS2_P0=deltaEquals(0, t0), isS2_P1=deltaEquals(1, t0)))
+      return(buildResult("intersect", dims=dims, substatus="co-linear", I0=S2_P0 +  t0 * v))
     }
     
     # they overlap in a valid subsegment
-    return(list(status="overlap", dims=dims, I0=S2_P0 + t0 * v, I1=S2_P0 + t1 * v))
+    #print(t0)
+    #print(t1)
+    return(buildResult("overlap", dims=dims, I0=S2_P0 + t0 * v, I1=S2_P0 + t1 * v))
   }
   
   # the segments are skew and may intersect in a point
@@ -403,19 +413,18 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   sI <- perpproduct(v_projection,w) / D
   if (!firstIsLine) {
     if ((sI < 0 & !deltaEquals(0, sI)) || (sI > 1 & !deltaEquals(1, sI))) {
-      return(list(status="disjoint", dims=dims, substatus="no intersect with S1"))
+      return(buildResult(status="disjoint", dims=dims, substatus="no intersect with S1"))
     }
   }
 
   # get the intersect parameter for S2
   tI <- perpproduct(u_projection,w) / D
   if ((tI < 0 & !deltaEquals(0, tI)) || (tI > 1 & !deltaEquals(1, tI))) {
-    return(list(status="disjoint", dims=dims, substatus="no intersect with S2"))
+    return(buildResult(status="disjoint", dims=dims, substatus="no intersect with S2"))
   }
   
   # compute S1 intersect point
-  return(list(status="intersect", dims=dims, I0=S1_P0 + sI * u, I0_test=S2_P0 + tI * v, # _test should be the same value
-              isS2_P0=deltaEquals(0, tI), isS2_P1=deltaEquals(1, tI)))
+  return(buildResult("intersect", dims=dims, substatus="collinear", I0=S1_P0 + sI * u, I0_check=S2_P0 + tI * v))
 }
 
 #' Create normal implicit representation of a plane defined by three vertices.

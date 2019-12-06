@@ -2,6 +2,52 @@ context("Geometry")
 
 test_that("segment intersection", {
   
+  p <- matrix(
+    #  S1 p0    p1       S2 p0    01
+    c( 1, 1, 1, 3, 3, 3, 0, 0, 2, 4, 4, 2,
+       1, 1, 6, 3, 3, 8, 4, 4, 4, 5, 5, 5),
+    ncol=3, byrow=T
+  )
+  
+  # parallel lines/segments
+  isect <- intersect_2Segments( p[1,], p[2,], p[5,], p[6,] )
+  expect_equal(isect$status, "disjoint")
+  
+  # both are points
+  isect <- intersect_2Segments( p[1,], p[1,], p[2,], p[2,] )
+  expect_equal(isect$status, "disjoint")
+  isect <- intersect_2Segments( p[5,], p[5,], p[5,], p[5,] )
+  expect_equal(isect$status, "intersect")
+  expect_equal(isect$I0, c(1,1,6))
+  
+  # one is a point
+  isect <- intersect_2Segments( p[1,], p[2,], p[7,], p[7,] )
+  expect_equal(isect$status, "disjoint")
+  isect <- intersect_2Segments( p[1,], p[2,], p[7,], p[7,], firstIsLine = T )
+  expect_equal(isect$status, "intersect")
+  expect_equal(isect$I0, c(4,4,4))
+  isect <- intersect_2Segments( p[1,], p[2,], p[6,], p[6,], firstIsLine = T )
+  expect_equal(isect$status, "disjoint")
+  isect <- intersect_2Segments( p[7,], p[7,], p[1,], p[2,] )
+  expect_equal(isect$status, "disjoint")
+  isect <- intersect_2Segments( p[7,], p[7,], p[1,], p[2,], firstIsLine = T )
+  expect_equal(isect$status, "disjoint")
+  
+  # co-linear
+  isect <- intersect_2Segments( p[1,], p[2,], p[7,], p[8,])
+  expect_equal(isect$status, "disjoint")
+  isect <- intersect_2Segments( p[1,], p[2,], p[7,], p[8,], firstIsLine = T )
+  expect_equal(isect$status, "overlap")
+  expect_equal(isect$I0, c(4,4,4))
+  expect_equal(isect$I0, c(5,5,5))
+  
+  
+  
+  
+  isect <- intersect_2Segments( p[1,], p[2,], p[3,], p[4,] )
+  expect_equal(isect$status, "intersect")
+  expect_equal(isect$I0, c(2, 2, 2))
+  
   # two overlapping segments
   # TODO can easiy add a test when not in the same plane by changing z=0 for one of them
   # overlap now can become intersect - not that trivial? Or is that addressed by choice of dim?
