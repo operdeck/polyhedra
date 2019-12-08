@@ -36,10 +36,23 @@ test_that("segment intersection", {
   # co-linear
   isect <- intersect_2Segments( p[1,], p[2,], p[7,], p[8,])
   expect_equal(isect$status, "disjoint")
+  isect <- intersect_2Segments( c(1,0,0), c(6,0,0), c(3,0,0), c(4,0,0) )
+  expect_equal(isect$status, "overlap")
+  expect_equal(isect$I0, c(3,0,0))
+  expect_equal(isect$I1, c(4,0,0))
+  isect <- intersect_2Segments( c(1,0,0), c(3,0,0), c(3,0,0), c(4,0,0) )
+  expect_equal(isect$status, "intersect")
+  expect_equal(isect$I0, c(3,0,0))
+  
+  isect <- intersect_2Segments( c(1,0,0), c(3,0,0), c(3,0,0), c(4,0,0), firstIsLine = T )
+  expect_equal(isect$status, "overlap")
+  expect_equal(isect$I0, c(3,0,0))
+  expect_equal(isect$I1, c(4,0,0))
+  
   isect <- intersect_2Segments( p[1,], p[2,], p[7,], p[8,], firstIsLine = T )
   expect_equal(isect$status, "overlap")
   expect_equal(isect$I0, c(4,4,4))
-  expect_equal(isect$I0, c(5,5,5))
+  expect_equal(isect$I1, c(5,5,5))
   
   
   
@@ -88,6 +101,7 @@ test_that("segment intersection", {
   expect_equal(isect$status, "disjoint")
   isect <- intersect_2Segments(seg1[1,], seg1[2,], seg2[1,], seg2[2,], firstIsLine = T)
   expect_equal(isect$status, "disjoint")
+  expect_equal(isect$substatus, "parallel")
   
   # a line segment in a face of a great dodecahedron vs some of the segments
   line_p0 <- c(-0.5257311, -0.2008114 , 0.0000000 ) # obtained by F4 intersect with F1

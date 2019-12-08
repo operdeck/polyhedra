@@ -175,19 +175,41 @@ projectFace <- function(coords3D)
                 nrow = nrow(coords3D)))
 }
 
-#' Tests if a point is Left|On|Right of an infinite line.
-#' From Dan Sunday's code in http://geomalgorithms.com/a03-_inclusion.html.
+#' Get the 3D minimum distance between 2 lines
+#' From: http://geomalgorithms.com/a07-_distance.html
+#' 
+#' @param L1_P0 First point line 1
+#' @param L1_P1 Second point line 1
+#' @param L2_P0 First point line 2
+#' @param L2_P1 Second point line 2
 #'
-#' @param P0 One point defining the line
-#' @param P1 Other point defining the line
-#' @param P Point to test
-#'
-#' @return >0 for P left of the line through P0 and P1, =0 for P  on the line, <0 for P  right of the line
-isLeft <- function(P0, P1, P)
+#' @return the shortest distance between L1 and L2
+dist3D_Line_to_Line <- function(L1_P0, L1_P1, L2_P0, L2_P1)
 {
-  rslt <- (P1[1] - P0[1]) * (P[2] - P0[2]) - (P[1] -  P0[1]) * (P1[2] - P0[2])
-  #if (deltaEquals(rslt, 0)) rslt <- 0 # my addition but does not help
-  return(rslt)
+  u <- L1_P1 - L1_P0
+  v <- L2_P1 - L2_P0
+  w <- L1_P0 - L2_P0
+  a <- dotproduct(u,u)         # always ><- 0
+  b <- dotproduct(u,v)
+  c <- dotproduct(v,v)         # always ><- 0
+  d <- dotproduct(u,w)
+  e <- dotproduct(v,w)
+  D <- a*c - b*b        # always ><- 0
+  
+  # compute the line parameters of the two closest points
+  if (deltaEquals(D, 0)) {          # the lines are almost parallel
+    sc <- 0.0
+    tc <- ifelse(b>c, d/b, e/c)    # use the largest denominator
+  }
+  else {
+    sc <- (b*e - c*d) / D
+    tc <- (a*e - b*d) / D
+  }
+  
+  # get the difference of the two closest points
+  dP <- w + (sc * u) - (tc * v)  # <-  L1(sc) - L2(tc)
+  
+  return (vectorlength(dP))   # return the closest distance
 }
 
 #' Tests if a point inside a possibly complex face using the winding number test.
@@ -199,6 +221,13 @@ isLeft <- function(P0, P1, P)
 #' @return True if point is inside, False otherwise
 isPointInFace <- function(P, Face)
 {
+  isLeft <- function(P0, P1, P)
+  {
+    rslt <- (P1[1] - P0[1]) * (P[2] - P0[2]) - (P[1] -  P0[1]) * (P1[2] - P0[2])
+    #if (deltaEquals(rslt, 0)) rslt <- 0 # my addition but does not help
+    return(rslt)
+  }
+  
   if (any(deltaEquals(distance(P, Face), 0))) {return(F)} # not in if on NB this is relatively expensive
   
   wn <- 0
@@ -281,6 +310,7 @@ intersect3D_2Planes <- function(Pn1, Pn2)
 
 #' Find the 2D intersection of 2 finite segments
 #' TODO: add check P(sI) = Q(tI) for all coordinates otherwise "disjoint" with substatus is previous
+#' From http://geomalgorithms.com/a05-_intersect-1.html
 #' 
 #' Sunday says
 #' But if they intersect, then their linear projections onto a 2D plane will also intersect. So, 
@@ -297,6 +327,18 @@ intersect3D_2Planes <- function(Pn1, Pn2)
 #' when intersect result is a single point, when overlap two otherwise none
 intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
 {
+  debug <- F
+  if (debug) {
+    clear3d()
+    drawAxes()
+    segments3d( c(S1_P0[1],S1_P1[1],S2_P0[1], S2_P1[1]),
+                c(S1_P0[2],S1_P1[2],S2_P0[2], S2_P1[2]),
+                c(S1_P0[3],S1_P1[3],S2_P0[3], S2_P1[3]), color="blue")
+    text3d( c(S1_P0[1],S1_P1[1],S2_P0[1], S2_P1[1]),
+            c(S1_P0[2],S1_P1[2],S2_P0[2], S2_P1[2]),
+            c(S1_P0[3],S1_P1[3],S2_P0[3], S2_P1[3]), 
+            text=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="blue")
+  }
   # Helper function to check if a point P is inside a collinear segment defined by two points
   # returns TRUE if P is inside segment, FALSE otherwise
   isInSegment_2D <- function(P, S_P0, S_P1)
@@ -331,62 +373,117 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   
   u <- S1_P1 - S1_P0
   v <- S2_P1 - S2_P0
-
+  
   # the rest of the function works with a projection on just 2 dimensions
   # we try to choose them such that u and v are not parallel
   for (dims in list(1:2,2:3,c(1,3))) {
-    S1_P0_projection <- S1_P0[dims]
-    S1_P1_projection <- S1_P1[dims]
-    S2_P0_projection <- S2_P0[dims]
-    S2_P1_projection <- S2_P1[dims]
-    u_projection <- u[dims]
-    v_projection <- v[dims]
-    D <- perpproduct(u_projection,v_projection)
+    S1_P0_2D <- S1_P0[dims]
+    S1_P1_2D <- S1_P1[dims]
+    S2_P0_2D <- S2_P0[dims]
+    S2_P1_2D <- S2_P1[dims]
+    u_2D <- u[dims]
+    v_2D <- v[dims]
+    D <- perpproduct(u_2D,v_2D)
     if (!deltaEquals(0, abs(D))) break
   }
-
-  w <- S1_P0_projection - S2_P0_projection
   
-  # test if  they are parallel (includes either being a point)
-  if (deltaEquals(0, abs(D))) {           # S1 and S2 are parallel
-    if (perpproduct(u_projection,w) != 0 || perpproduct(v_projection,w) != 0)  {
-      return(buildResult("disjoint", dims=dims, substatus="parallel, not collinear"))
+  lookup <- function(P, dims) {
+    refx <- which(sapply(dims, identical, 1))
+    refy <- which(sapply(dims, identical, 2))
+    refz <- which(sapply(dims, identical, 3))
+    return(c(ifelse(length(refx)==1,P[refx],0), ifelse(length(refy)==1,P[refy],0), ifelse(length(refz)==1,P[refz],0)))
+  }
+  
+  if (debug) {
+    cat("Projected on dims", dims, fill=T)
+    print("u and v projected:")
+    print(u_2D)
+    print(v_2D)
+    
+    segments3d(c(lookup(S1_P0_2D, dims)[1],lookup(S1_P1_2D, dims)[1],lookup(S2_P0_2D, dims)[1], lookup(S2_P1_2D, dims)[1]),
+               c(lookup(S1_P0_2D, dims)[2],lookup(S1_P1_2D, dims)[2],lookup(S2_P0_2D, dims)[2], lookup(S2_P1_2D, dims)[2]),
+               c(lookup(S1_P0_2D, dims)[3],lookup(S1_P1_2D, dims)[3],lookup(S2_P0_2D, dims)[3], lookup(S2_P1_2D, dims)[3]), color="black")
+    text3d( c(lookup(S1_P0_2D, dims)[1],lookup(S1_P1_2D, dims)[1],lookup(S2_P0_2D, dims)[1], lookup(S2_P1_2D, dims)[1]),
+            c(lookup(S1_P0_2D, dims)[2],lookup(S1_P1_2D, dims)[2],lookup(S2_P0_2D, dims)[2], lookup(S2_P1_2D, dims)[2]),
+            c(lookup(S1_P0_2D, dims)[3],lookup(S1_P1_2D, dims)[3],lookup(S2_P0_2D, dims)[3], lookup(S2_P1_2D, dims)[3]), 
+            text=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="black")
+  }
+  
+  w <- S1_P0_2D - S2_P0_2D
+  
+  # test if they are parallel (includes either being a point or them being co-linear segments)
+  if (deltaEquals(0, abs(D))) { 
+    
+    if (debug) {
+      print("w and perpproducts")
+      print(w)
+      print(perpproduct(u_2D,w))
+      print(perpproduct(v_2D,w))
+    }
+    
+    # not sure about below when 1st is not a line
+    # delta equals?
+    if (perpproduct(u_2D,w) != 0 | perpproduct(v_2D,w) != 0)  {
+      return(buildResult("disjoint", dims=dims, substatus="parallel"))
     }
     
     # they are co-linear or degenerate
     # check if they are degenerate  points
-    du <- dotproduct(u_projection,u_projection)
-    dv <- dotproduct(v_projection,v_projection)
+    du <- dotproduct(u_2D,u_2D)
+    dv <- dotproduct(v_2D,v_2D)
     if (deltaEquals(0,du) && deltaEquals(0,dv)) { # both segments are points
-      if (!deltaEquals(S1_P0_projection[1], S2_P0_projection[1]) | !deltaEquals(S1_P0_projection[2], S2_P0_projection[2])) {         
+      if (!deltaEquals(S1_P0_2D[1], S2_P0_2D[1]) | !deltaEquals(S1_P0_2D[2], S2_P0_2D[2])) {         
         return(buildResult("disjoint", dims=dims, substatus="distinct points"))
       }
       return(buildResult("intersect", dims=dims, substatus="both same single point", I0=S1_P0))
     }
     
     if (deltaEquals(0,du)) { # S1 is a single point
-      if  (!isInSegment_2D(S1_P0_projection, S2_P0_projection, S2_P1_projection)) {  # but is not in S2
+      if  (!isInSegment_2D(S1_P0_2D, S2_P0_2D, S2_P1_2D)) {  # but is not in S2
         return(buildResult("disjoint", dims=dims, substatus="S1 is single point"))
       }
       return(buildResult("intersect", dims=dims, substatus="S1 single point", I0=S1_P0))
     }
     
     if (deltaEquals(0,dv)) { # S2 a single point
-      if  (!firstIsLine & !isInSegment_2D(S2_P0_projection, S1_P0_projection, S1_P1_projection)) { # but is not in S1
+      if  (!firstIsLine & !isInSegment_2D(S2_P0_2D, S1_P0_2D, S1_P1_2D)) { # but is not in S1
         return(buildResult("disjoint", dims=dims, substatus="S2 is single point"))
       }
       return(buildResult("intersect", dims=dims, substatus="S2 single point", I0=S2_P0))
     }
     
     # they are collinear segments - get  overlap (or not)
-    w2 <- S1_P1_projection - S2_P0_projection
-    if (!deltaEquals(v_projection[1], 0)) {
-      t0 <- w[1] / v_projection[1]
-      t1 <- w2[1] / v_projection[1]
-    } else {
-      t0 <- w[2] / v_projection[2]
-      t1 <- w2[2] / v_projection[2]
+    
+    # if first is line return 2nd segment and be done
+    if (firstIsLine) {
+      if (!deltaEquals(0, dist3D_Line_to_Line(S1_P0, S1_P1, S2_P0, S2_P1))) {
+        return(buildResult("disjoint", dims=dims, substatus="parallel"))
+      }
+      
+      return(buildResult("overlap", dims=dims, substatus="1st is line", I0=S2_P0, I1=S2_P1))
     }
+    
+    
+    #if (firstIsLine) return(buildResult("overlap", dims=dims, I0=S2_P0, I1=S2_P1))
+    
+    
+    # S1_P1 + t0*(S1_P1-S1_P0) = S1_P1 + t0*u
+    # S2_P1 + t1*(S2_P1-S2_P0) = S2_P1 + t1*v
+    # w = S1_P0 - S2_P0
+    
+    ###
+    
+    w2 <- S1_P1_2D - S2_P0_2D
+    if (!deltaEquals(v_2D[1], 0)) {
+      t0 <- w[1] / v_2D[1]
+      t1 <- w2[1] / v_2D[1]
+    } else {
+      t0 <- w[2] / v_2D[2]
+      t1 <- w2[2] / v_2D[2]
+    }
+    
+    # cat("Before swap & clip t0=",t0,"t1=",t1,fill=T)
+    # print(v_2D)
     
     if (t0 > t1) {                   # must have t0 smaller than t1
       t <- t0 # swap
@@ -396,8 +493,10 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
     if (!firstIsLine & ((t0 > 1 & !deltaEquals(1, t0)) || (t1 < 0 & !deltaEquals(0, t1)))) {
       return(buildResult("disjoint", dims=dims, substatus="no overlap"))
     }
+    
     t0 <- max(0, t0)   # clip to min 0
     t1 <- min(1, t1)   # clip to max 1
+    #cat("After clip t0=",t0,"t1=",t1,fill=T)
     if (deltaEquals(t0, t1)) {  # intersect is a point
       return(buildResult("intersect", dims=dims, substatus="co-linear", I0=S2_P0 +  t0 * v))
     }
@@ -410,15 +509,15 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   
   # the segments are skew and may intersect in a point
   # get the intersect parameter for S1
-  sI <- perpproduct(v_projection,w) / D
+  sI <- perpproduct(v_2D,w) / D
   if (!firstIsLine) {
     if ((sI < 0 & !deltaEquals(0, sI)) || (sI > 1 & !deltaEquals(1, sI))) {
       return(buildResult(status="disjoint", dims=dims, substatus="no intersect with S1"))
     }
   }
-
+  
   # get the intersect parameter for S2
-  tI <- perpproduct(u_projection,w) / D
+  tI <- perpproduct(u_2D,w) / D
   if ((tI < 0 & !deltaEquals(0, tI)) || (tI > 1 & !deltaEquals(1, tI))) {
     return(buildResult(status="disjoint", dims=dims, substatus="no intersect with S2"))
   }

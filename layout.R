@@ -654,25 +654,27 @@ allFaceIntersections <- function(poly)
   # TODO: for now assuming either face returns the same result. This is not true for complex cases
   # so we should do both then intersect (overlap) the resulting segments.
   intersectionSegments <- rbindlist(lapply(safeseq(nrow(intersectionLines)), function(i) {
-    c <- poly$coords[poly$faces[[intersectionLines[i]$F1]], ]
-    next_idx <- shiftrotate(seq(nrow(c)))
-    prev_idx <- shiftrotate(seq(nrow(c)), -1)
+    faceCoords <- poly$coords[poly$faces[[intersectionLines[i]$F1]], ]
+    next_idx <- shiftrotate(seq(nrow(faceCoords)))
+    prev_idx <- shiftrotate(seq(nrow(faceCoords)), -1)
     skipNext <- F
     intersectionSegmentP0 <- NULL
     intersectionSegmentP1 <- NULL
     # would probably become a 4x3 matrix in the general case
-    for (j in seq(nrow(c))) {
+    for (j in seq(nrow(faceCoords))) {
       if (skipNext) { 
         skipNext <- F
         next
       }
       i_seg <- intersect_2Segments(c(intersectionLines[i]$P0_x, intersectionLines[i]$P0_y, intersectionLines[i]$P0_z), 
                                    c(intersectionLines[i]$P1_x, intersectionLines[i]$P1_y, intersectionLines[i]$P1_z), 
-                                   c[j,], c[next_idx[j],], firstIsLine = T)
+                                   faceCoords[j,], 
+                                   faceCoords[next_idx[j],], 
+                                   firstIsLine = T)
       
-      if (intersectionLines[i]$F2==4) {
-        print(i_seg)
-      }
+      # if (intersectionLines[i]$F2==4) {
+      #   print(i_seg)
+      # }
       if (i_seg$status == "intersect") {
         if (is.null(intersectionSegmentP0)) {
           intersectionSegmentP0 <- i_seg$I0
@@ -680,7 +682,8 @@ allFaceIntersections <- function(poly)
           intersectionSegmentP1 <- i_seg$I0
           break # done, both points found
         }
-        if (i_seg$isS2_P1) skipNext <- T  
+        # if the intersection is the segment end, skip next round as this would start with the same point
+        if (deltaEquals(0, distance(i_seg$I0, faceCoords[next_idx[j],]))) skipNext <- T  
       }
     }
     if (is.null(intersectionSegmentP0) | is.null(intersectionSegmentP1)) stop("Expected two points")
@@ -690,7 +693,8 @@ allFaceIntersections <- function(poly)
                       S1_x=intersectionSegmentP1[1], S1_y=intersectionSegmentP1[2], S1_z=intersectionSegmentP1[3]))
   }))
   
-  return(merge(intersectionSegments, intersectionLines, by=c("F1","F2"))) # merge only for debug
+  #return(merge(intersectionSegments, intersectionLines, by=c("F1","F2"))) # merge only for debug
+  return(intersectionSegments)
 }
 
 # Find segment end points for the intersection of a line with one polygon
@@ -698,62 +702,81 @@ hull <- function(poly)
 {
   poly <- greatDodecahedron
   poly <- compose(tetrahedron, dual(tetrahedron))
-  poly <- greatIcosahedron
+  #poly <- greatIcosahedron
   
   segments <- allFaceIntersections(poly)
-  
-  # Bug with greatDodecahedron
-  # primary face 1
-  
+
   clear3d()
   primaryFace <- 1
   for (i in unique(unlist(segments[F1 == primaryFace | F2 == primaryFace,1:2]))) {
     if (i == primaryFace) {
-      #drawPolygon(poly$faces[[i]], poly$coords, alpha=0.5, col = "yellow", label=fToStr(i), drawlines=T, drawvertices=T)
+      drawPolygon(poly$faces[[i]], poly$coords, alpha=0.5, col = "yellow", label=fToStr(i), drawlines=T, drawvertices=T)
     } else {
-      #drawPolygon(poly$faces[[i]], poly$coords, alpha=0.3, col = "grey", label=fToStr(i), drawlines=T, drawvertices=T)
+      drawPolygon(poly$faces[[i]], poly$coords, alpha=0.3, col = "grey", label=fToStr(i), drawlines=T, drawvertices=T)
     }
   }
   for (i in which(segments$F1 == primaryFace | segments$F2 == primaryFace))  {
     # for debugging only:  
     spheres3d(segments[i]$S0_x, segments[i]$S0_y, segments[i]$S0_z, color="red", radius = 0.03)
     spheres3d(segments[i]$S1_x, segments[i]$S1_y, segments[i]$S1_z, color="red", radius = 0.03)
-
-    lines3d(c(segments[i]$P0_x, segments[i]$P1_x), 
-            c(segments[i]$P0_y, segments[i]$P1_y), 
-            c(segments[i]$P0_z, segments[i]$P1_z), 
-            color="red")
-    text3d(mean(c(segments[i]$P0_x, segments[i]$P1_x)), 
-            mean(c(segments[i]$P0_y, segments[i]$P1_y)), 
-            mean(c(segments[i]$P0_z, segments[i]$P1_z)), 
-            color="red",text=paste(segments[i]$F1,segments[i]$F2,sep = "-"))
     
+    if ("P0_x" %in% names(segments)) {
+      # these represent the line begin/ends but only present when merged in
+      lines3d(c(segments[i]$P0_x, segments[i]$P1_x), 
+              c(segments[i]$P0_y, segments[i]$P1_y), 
+              c(segments[i]$P0_z, segments[i]$P1_z), 
+              color="red")
+      text3d(mean(c(segments[i]$P0_x, segments[i]$P1_x)), 
+             mean(c(segments[i]$P0_y, segments[i]$P1_y)), 
+             mean(c(segments[i]$P0_z, segments[i]$P1_z)), 
+             color="red",text=paste(segments[i]$F1,segments[i]$F2,sep = "-"))
+    }    
     lines3d(0.01+c(segments[i]$S0_x, segments[i]$S1_x), 
             0.01+c(segments[i]$S0_y, segments[i]$S1_y), 
             0.01+c(segments[i]$S0_z, segments[i]$S1_z), 
             color="blue")
     text3d(0.01+mean(c(segments[i]$S0_x, segments[i]$S1_x)), 
-            0.01+mean(c(segments[i]$S0_y, segments[i]$S1_y)), 
-            0.01+mean(c(segments[i]$S0_z, segments[i]$S1_z)), 
-            color="blue", text=paste(segments[i]$F1,segments[i]$F2,sep = "-"))
+           0.01+mean(c(segments[i]$S0_y, segments[i]$S1_y)), 
+           0.01+mean(c(segments[i]$S0_z, segments[i]$S1_z)), 
+           color="blue", text=paste(segments[i]$F1,segments[i]$F2,sep = "-"))
     
   }
   
+  # Intersect all those new segments amongst eachother
   faceSegments <- segments[F1 == primaryFace | F2 == primaryFace]
   segmentPairs <- combn(nrow(faceSegments),2)
   for (i in safeseq(ncol(segmentPairs))) {
-    i_seg <- intersect_2Segments(c(faceSegments[segmentPairs[1,i]]$S0_x, faceSegments[segmentPairs[1,i]]$S0_y, faceSegments[segmentPairs[1,i]]$S0_z), 
-                                 c(faceSegments[segmentPairs[1,i]]$S1_x, faceSegments[segmentPairs[1,i]]$S1_y, faceSegments[segmentPairs[1,i]]$S1_z), 
-                                 c(faceSegments[segmentPairs[2,i]]$S0_x, faceSegments[segmentPairs[2,i]]$S0_y, faceSegments[segmentPairs[2,i]]$S0_z), 
-                                 c(faceSegments[segmentPairs[2,i]]$S1_x, faceSegments[segmentPairs[2,i]]$S1_y, faceSegments[segmentPairs[2,i]]$S1_z))
-    print(segmentPairs[,i])
+    seg1_start <- c(faceSegments[segmentPairs[1,i]]$S0_x, faceSegments[segmentPairs[1,i]]$S0_y, faceSegments[segmentPairs[1,i]]$S0_z)
+    seg1_end <- c(faceSegments[segmentPairs[1,i]]$S1_x, faceSegments[segmentPairs[1,i]]$S1_y, faceSegments[segmentPairs[1,i]]$S1_z)
+    seg2_start <- c(faceSegments[segmentPairs[2,i]]$S0_x, faceSegments[segmentPairs[2,i]]$S0_y, faceSegments[segmentPairs[2,i]]$S0_z)
+    seg2_end <- c(faceSegments[segmentPairs[2,i]]$S1_x, faceSegments[segmentPairs[2,i]]$S1_y, faceSegments[segmentPairs[2,i]]$S1_z)
+    i_seg <- intersect_2Segments(seg1_start, seg1_end, seg2_start, seg2_end)
+    
+    #print(segmentPairs[,i])
     # intersect and one of the two flags t then skip? no new pt
     if (i_seg$status == "intersect") {
-      print(i_seg)
-      if (!i_seg$isS2_P0 & !i_seg$isS2_P1) {
+      #print(i_seg)
+      # only if genuinly new point
+      if (!deltaEquals(0, distance(i_seg$I0, seg1_start)) & !deltaEquals(0, distance(i_seg$I0, seg1_end)) &
+          !deltaEquals(0, distance(i_seg$I0, seg2_start)) & !deltaEquals(0, distance(i_seg$I0, seg2_end))) 
+      {
+        print("New pt")
         spheres3d(i_seg$I0[1], i_seg$I0[2], i_seg$I0[3], color="purple", radius = 0.04)
       }
     }
   }
+  
+  # Points:
+  # We have old face vertices, new segment end points (possibly 0) and segment intersections (possibly 0)
+  # Label them and give them a unique index (eventually: globally)
+  
+  # Split segments:
+  # We have old face edges and new segments (possibly 0)
+  # Now see if any of the points are in (not end points) and if so split into multiple segments (could be > 2)
+  
+  # Traverse:
+  # Start at old face vertex V1 and old face edge E
+  #   go from V1 to E until you encounter a (new) vertex V2
+  #   at that vertex take the sharpest (left) possible 
 }
 
