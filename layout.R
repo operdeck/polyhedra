@@ -620,12 +620,55 @@ testLayout <- function()
 
 #testLayout()
 
+getHullCoordIdx <- function(p)
+{
+  for (i in safeseq(length(hullCoords))) {
+    if (deltaEquals(0, distance(p, hullCoords[[i]]))) {
+      return(i)
+    }
+  } 
+  hullCoords[[1+length(hullCoords)]] <<- p
+  return(length(hullCoords))
+}
+
+findOrAddHullEdge <- function(a, b)
+{
+  # TODO remember faces too!
+  
+  idx <- which(sapply(hullEdges, function(edge) {return( (edge[1]==a & edge[2]==b) | (edge[1]==b & edge[2]==a))}))    
+  if (length(idx) == 0) {
+    hullEdges[[1+length(hullEdges)]] <<- c(a,b) # list(v1=a, v2=b, F1=.., F2=..)
+    return(length(hullEdges))
+  }  
+  return(idx)
+}
+
+splitHullEdge <- function(a, b, mid)
+{
+  if (b != mid & a != mid) {
+    old <- findOrAddHullEdge(a,b)
+    hullEdges[[old]] <<- NULL
+    findOrAddHullEdge(a,mid)
+    findOrAddHullEdge(mid,b)
+  }
+}
+
+# TODO change to segmentation returning list of coords and segments
+# global hullCoords/Edges are returns of this segmentation function
 
 #' Get intersection lines of all faces of a polygon.
 #'
 #' @param poly 
 allFaceIntersections <- function(poly)
 {
+  # Start with current polygon 
+  # hullCoords is a list of unique coordinates of the hull
+  # TODO not global but return from this func
+  hullCoords <<- as.list(as.data.table(t(poly$coords))) 
+  edges <- which(upper.tri(poly$coordPairToEdge) & (poly$coordPairToEdge != 0))
+  hullEdges <<- lapply(edges, function(edge) {return (c((edge-1)%%12+1, (edge-1)%/%12+1))})
+  
+  
   facePairs <- combn(length(poly$faces),2)
   
   # Exclude face pairs that are connected anyway (poly$edgeToFaces)
@@ -643,7 +686,7 @@ allFaceIntersections <- function(poly)
   intersectionLines <- rbindlist(apply(facePairs[,!isEdgeConnected], 2, function(facepair) {
     i <- intersect3D_2Planes(planeToNormalForm(poly$faces[[facepair[1]]], poly$coords), 
                              planeToNormalForm(poly$faces[[facepair[2]]], poly$coords))
-    if (i$status == "intersect" & (facepair[1]==1 | facepair[2]==1)) {
+    if (i$status == "intersect" & (facepair[1]==1 | facepair[2]==1)) { # for debug restricted to face 1
       return(data.table(F1=facepair[1], F2=facepair[2], 
                         P0_x=i$P0[1], P0_y=i$P0[2], P0_z=i$P0[3], 
                         P1_x=i$P1[1], P1_y=i$P1[2], P1_z=i$P1[3]))
@@ -654,11 +697,12 @@ allFaceIntersections <- function(poly)
   # TODO: for now assuming either face returns the same result. This is not true for complex cases
   # so we should do both then intersect (overlap) the resulting segments.
   intersectionSegments <- rbindlist(lapply(safeseq(nrow(intersectionLines)), function(i) {
-    faceCoords <- poly$coords[poly$faces[[intersectionLines[i]$F1]], ]
-    next_idx <- shiftrotate(seq(nrow(faceCoords)))
-    prev_idx <- shiftrotate(seq(nrow(faceCoords)), -1)
+    faceVertices <- poly$faces[[intersectionLines[i]$F1]]
+    faceCoords <- poly$coords[faceVertices, ]
+    #next_idx <- shiftrotate(seq(nrow(faceCoords))) # maybe just replace by doing j%% + 1
+    #prev_idx <- shiftrotate(seq(nrow(faceCoords)), -1)
     skipNext <- F
-    intersectionSegmentP0 <- NULL
+    intersectionSegmentP0 <- NULL # really .. intersection1/2
     intersectionSegmentP1 <- NULL
     # would probably become a 4x3 matrix in the general case
     for (j in seq(nrow(faceCoords))) {
@@ -669,28 +713,52 @@ allFaceIntersections <- function(poly)
       i_seg <- intersect_2Segments(c(intersectionLines[i]$P0_x, intersectionLines[i]$P0_y, intersectionLines[i]$P0_z), 
                                    c(intersectionLines[i]$P1_x, intersectionLines[i]$P1_y, intersectionLines[i]$P1_z), 
                                    faceCoords[j,], 
-                                   faceCoords[next_idx[j],], 
+                                   faceCoords[(j%%nrow(faceCoords))+1,], 
                                    firstIsLine = T)
       
       # if (intersectionLines[i]$F2==4) {
       #   print(i_seg)
       # }
       if (i_seg$status == "intersect") {
+        intersectionVertexIndex <- getHullCoordIdx(i_seg$I0)
         if (is.null(intersectionSegmentP0)) {
-          intersectionSegmentP0 <- i_seg$I0
+          intersectionSegmentP0 <- intersectionVertexIndex
         } else if (is.null(intersectionSegmentP1)) {
-          intersectionSegmentP1 <- i_seg$I0
-          break # done, both points found
+          intersectionSegmentP1 <- intersectionVertexIndex
+          
+          cat("Add edge:", intersectionSegmentP0, "-", intersectionSegmentP1, fill=T)
+          findOrAddHullEdge(intersectionSegmentP0, intersectionSegmentP1)
+          # add F1/F2 intersectionLines[i]$F1/F2
+        } else {
+          stop("Expected no more than 2 intersections of two faces")
         }
+        
         # if the intersection is the segment end, skip next round as this would start with the same point
-        if (deltaEquals(0, distance(i_seg$I0, faceCoords[next_idx[j],]))) skipNext <- T  
+        if (deltaEquals(0, distance(i_seg$I0, faceCoords[(j%%nrow(faceCoords))+1,]))) {
+          skipNext <- T  
+        } else {
+          if (!deltaEquals(0, distance(i_seg$I0, faceCoords[j,]))) {
+            # somewhere in the segment
+            cat("Split edge:", 
+                faceVertices[j], 
+                intersectionVertexIndex, 
+                faceVertices[(j%%nrow(faceCoords))+1], fill=T)
+            splitHullEdge(faceVertices[j], faceVertices[(j%%nrow(faceCoords))+1], intersectionVertexIndex)
+          }
+        }
+        
+        if (!is.null(intersectionSegmentP0) & !is.null(intersectionSegmentP1)) {
+          break # both intersections found - assuming there are only 2! maybe we should not and assert?!
+        }
       }
     }
     if (is.null(intersectionSegmentP0) | is.null(intersectionSegmentP1)) stop("Expected two points")
     
+    
     return(data.table(F1=intersectionLines[i]$F1, F2=intersectionLines[i]$F2,
-                      S0_x=intersectionSegmentP0[1], S0_y=intersectionSegmentP0[2], S0_z=intersectionSegmentP0[3],
-                      S1_x=intersectionSegmentP1[1], S1_y=intersectionSegmentP1[2], S1_z=intersectionSegmentP1[3]))
+                      S0=intersectionSegmentP0, S1=intersectionSegmentP1))
+    # S0_x=intersectionSegmentP0[1], S0_y=intersectionSegmentP0[2], S0_z=intersectionSegmentP0[3],
+    # S1_x=intersectionSegmentP1[1], S1_y=intersectionSegmentP1[2], S1_z=intersectionSegmentP1[3]))
   }))
   
   #return(merge(intersectionSegments, intersectionLines, by=c("F1","F2"))) # merge only for debug
@@ -700,12 +768,14 @@ allFaceIntersections <- function(poly)
 # Find segment end points for the intersection of a line with one polygon
 hull <- function(poly)
 {
+  spacing <- 1.1
+  
   poly <- greatDodecahedron
   poly <- compose(tetrahedron, dual(tetrahedron))
   #poly <- greatIcosahedron
   
   segments <- allFaceIntersections(poly)
-
+  
   clear3d()
   primaryFace <- 1
   for (i in unique(unlist(segments[F1 == primaryFace | F2 == primaryFace,1:2]))) {
@@ -717,11 +787,13 @@ hull <- function(poly)
   }
   for (i in which(segments$F1 == primaryFace | segments$F2 == primaryFace))  {
     # for debugging only:  
-    spheres3d(segments[i]$S0_x, segments[i]$S0_y, segments[i]$S0_z, color="red", radius = 0.03)
-    spheres3d(segments[i]$S1_x, segments[i]$S1_y, segments[i]$S1_z, color="red", radius = 0.03)
+    spheres3d(hullCoords[[segments[i]$S0]] [1], hullCoords[[segments[i]$S0]] [2], hullCoords[[segments[i]$S0]] [3], color="red", radius = 0.03)
+    spheres3d(hullCoords[[segments[i]$S1]] [1], hullCoords[[segments[i]$S1]] [2], hullCoords[[segments[i]$S1]] [3], color="red", radius = 0.03)
+    text3d(spacing*hullCoords[[segments[i]$S0]] [1], spacing*hullCoords[[segments[i]$S0]] [2], spacing*hullCoords[[segments[i]$S0]] [3], text=segments[i]$S0, color="red", radius = 0.03)
+    text3d(spacing*hullCoords[[segments[i]$S1]] [1], spacing*hullCoords[[segments[i]$S1]] [2], spacing*hullCoords[[segments[i]$S1]] [3], text=segments[i]$S1, color="red", radius = 0.03)
     
     if ("P0_x" %in% names(segments)) {
-      # these represent the line begin/ends but only present when merged in
+      # these represent the line begin/ends but only present when merged in (only for deep debugging)
       lines3d(c(segments[i]$P0_x, segments[i]$P1_x), 
               c(segments[i]$P0_y, segments[i]$P1_y), 
               c(segments[i]$P0_z, segments[i]$P1_z), 
@@ -730,26 +802,32 @@ hull <- function(poly)
              mean(c(segments[i]$P0_y, segments[i]$P1_y)), 
              mean(c(segments[i]$P0_z, segments[i]$P1_z)), 
              color="red",text=paste(segments[i]$F1,segments[i]$F2,sep = "-"))
-    }    
-    lines3d(0.01+c(segments[i]$S0_x, segments[i]$S1_x), 
-            0.01+c(segments[i]$S0_y, segments[i]$S1_y), 
-            0.01+c(segments[i]$S0_z, segments[i]$S1_z), 
+    }
+    
+    lines3d(0.01+c(hullCoords[[segments[i]$S0]][1], hullCoords[[segments[i]$S1]][1]), 
+            0.01+c(hullCoords[[segments[i]$S0]][2], hullCoords[[segments[i]$S1]][2]), 
+            0.01+c(hullCoords[[segments[i]$S0]][3], hullCoords[[segments[i]$S1]][3]), 
             color="blue")
-    text3d(0.01+mean(c(segments[i]$S0_x, segments[i]$S1_x)), 
-           0.01+mean(c(segments[i]$S0_y, segments[i]$S1_y)), 
-           0.01+mean(c(segments[i]$S0_z, segments[i]$S1_z)), 
-           color="blue", text=paste(segments[i]$F1,segments[i]$F2,sep = "-"))
+    text3d(0.01+mean(c(hullCoords[[segments[i]$S0]][1], hullCoords[[segments[i]$S1]][1])), 
+           0.01+mean(c(hullCoords[[segments[i]$S0]][2], hullCoords[[segments[i]$S1]][2])), 
+           0.01+mean(c(hullCoords[[segments[i]$S0]][3], hullCoords[[segments[i]$S1]][3])), 
+           color="blue", text=paste(fToStr(segments[i]$F1),fToStr(segments[i]$F2),sep = "-"))
     
   }
+  
+  stop("Refactored segment representation till here with global hull coords and edges")
+  
+  # below belongs in segmentation routine too
   
   # Intersect all those new segments amongst eachother
   faceSegments <- segments[F1 == primaryFace | F2 == primaryFace]
   segmentPairs <- combn(nrow(faceSegments),2)
   for (i in safeseq(ncol(segmentPairs))) {
-    seg1_start <- c(faceSegments[segmentPairs[1,i]]$S0_x, faceSegments[segmentPairs[1,i]]$S0_y, faceSegments[segmentPairs[1,i]]$S0_z)
-    seg1_end <- c(faceSegments[segmentPairs[1,i]]$S1_x, faceSegments[segmentPairs[1,i]]$S1_y, faceSegments[segmentPairs[1,i]]$S1_z)
-    seg2_start <- c(faceSegments[segmentPairs[2,i]]$S0_x, faceSegments[segmentPairs[2,i]]$S0_y, faceSegments[segmentPairs[2,i]]$S0_z)
-    seg2_end <- c(faceSegments[segmentPairs[2,i]]$S1_x, faceSegments[segmentPairs[2,i]]$S1_y, faceSegments[segmentPairs[2,i]]$S1_z)
+    seg1_start <- hullCoords[[faceSegments[segmentPairs[1,i]]$S0]]
+    seg1_end <- hullCoords[[faceSegments[segmentPairs[1,i]]$S1]]
+    seg2_start <- hullCoords[[faceSegments[segmentPairs[2,i]]$S0]]
+    seg2_end <- hullCoords[[faceSegments[segmentPairs[2,i]]$S1]]
+
     i_seg <- intersect_2Segments(seg1_start, seg1_end, seg2_start, seg2_end)
     
     #print(segmentPairs[,i])
