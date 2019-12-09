@@ -2,12 +2,17 @@ library(rgl)
 library(data.table)
 source("geometry.R")
 
-# The function rgl_init() will create a new RGL device if requested or if there is no opened device:
+eToStr <- function(poly, e)
+{
+  return (paste0(e, " (", paste(sort(poly$edgeToVertices[e,]),collapse="-"), ")"))  
+}
 
-#' @param new.device a logical value. If TRUE, creates a new device
-#' @param bg the background color of the device
-#' @param width the width of the device
-rgl_init <- function(new.device = FALSE, bg = "white", width = 640, height = width) {
+fToStr <- function(f)
+{
+  return(paste0("F",f))
+}
+
+drawInit <- function(new.device = FALSE, bg = "white", width = 640, height = width) {
   if( new.device | rgl.cur() == 0 ) {
     rgl.open()
     par3d(windowRect = 50 + c( 0, 0, width, height ) )
@@ -17,12 +22,30 @@ rgl_init <- function(new.device = FALSE, bg = "white", width = 640, height = wid
   rgl.viewpoint(theta = 15, phi = 20, zoom = 0.7)
 }
 
-polyLines <- function(coords, ...)
+drawSegment <- function(coordsFrom, coordsTo, ...)
+{
+  if (is.matrix(coordsFrom)) stop("Matrix not supported currently")
+  if (is.matrix(coordsTo)) stop("Matrix not supported currently")
+  segments3d(c(coordsFrom[1], coordsTo[1]), c(coordsFrom[2], coordsTo[2]), c(coordsFrom[3], coordsTo[3]), ...)
+}
+
+drawLines <- function(coords, ...)
 {
   if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
   lines3d(coords[,1], coords[,2], coords[,3], ...)
 }
 
+drawDots <- function(coords, ...)
+{
+  if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
+  spheres3d(coords[,1], coords[,2], coords[,3], ...)
+}
+
+drawTexts <- function(coords, text, ...)
+{
+  if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
+  text3d(coords[,1], coords[,2], coords[,3], text=text, ...)
+}
 
 #open3d()
 #shade3d( icosahedron3d() )
@@ -175,16 +198,14 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
   spacing <- 0.1
   center <- apply(coords[face,], 2, mean)
   if (drawlines) {
-    lines3d(coords[c(face, face[1]),1] + offset[1],
-            coords[c(face, face[1]),2] + offset[2],
-            coords[c(face, face[1]),3] + offset[3], color="orange")
+    drawLines(t(t(coords[c(face, face[1]),]) + offset), color="orange")
   }
   if (drawvertices) {
-    spheres3d(offset[1] + coords[face,1], offset[2] + coords[face,2], offset[3] + coords[face,3], color="green", radius = 0.02)
-    text3d(offset[1] + (1+spacing)*coords[face,1], offset[2] + (1+spacing)*coords[face,2], offset[3] + (1+spacing)*coords[face,3], text = face, color="blue")
+    drawDots(t(offset + t(coords[face,])), color="green", radius = 0.02)
+    drawTexts(t(offset + (1+spacing)*t(coords[face,])), text = face, color="blue")
   }
   if (!is.null(label)) {
-    text3d(offset[1] + (1+spacing)*center[1], offset[2] + (1+spacing)*center[2], offset[3] + (1+spacing)*center[3], text = label, color="black")
+    drawTexts(offset + (1+spacing)*center, text = label, color="black")
   }
   
   # NB face orientation is not normalized
@@ -199,7 +220,7 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
     if((sum(ang) > 2*pi) & !deltaEquals(sum(ang), 2*pi)) {
       if (!isFlatFace(coords[face,])) {
         drawPolygonTriangulate(face, coords, col, alpha, offset)
-        text3d(offset[1] + center[1], offset[2] + center[2], offset[3] + center[3], text = "!", color="white")
+        drawTexts(offset + center, text = "!", color="white")
       } else {
         drawStarPolygon(face, coords, col, alpha, offset)
       }
@@ -207,7 +228,6 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
       drawPolygonTriangulate(face, coords, col, alpha, offset)
     }
   }
-  
 }
 
 # returns an array of colors that can be indexed by face number
@@ -241,7 +261,7 @@ assignColors <- function(p)
 }
 
 # Draw a single polygon. Offset is optional.
-drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$name), debug=F)
+drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p$name), debug=F)
 {
   if (debug) {
     drawAxes()
@@ -249,8 +269,8 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
     alpha <- 0.6 # in debug make somewhat transparent
     
     # coords
-    spheres3d(x + p$coords[,1], y + p$coords[,2], z + p$coords[,3], color="green", radius = 0.02)
-    text3d(x + (1+spacing)*p$coords[,1], y + (1+spacing)*p$coords[,2], z + (1+spacing)*p$coords[,3], text = seq(nrow(p$coords)), color="blue")
+    drawDots(t(offset + t(p$coords)), color="green", radius = 0.02)
+    drawTexts(t(offset + (1+spacing)*t(p$coords)), text = seq(nrow(p$coords)), color="blue")
     
     # edges
     if("coordPairToEdge" %in% names(p)) {
@@ -258,7 +278,7 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
         for (j in (i+1):nrow(p$coordPairToEdge)) {
           if (p$coordPairToEdge[i,j] != 0) {
             mid <- apply(p$coords[c(i,j),],2,mean)
-            text3d(mid[1], mid[2], mid[3], text = paste0("e",p$coordPairToEdge[i,j]), color="black")
+            drawTexts(mid, text = paste0("e",p$coordPairToEdge[i,j]), color="black")
           }
         }
       }
@@ -271,12 +291,12 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
     label <- paste(label, "(", description(p), ")")
   }
   if (nchar(label) > 0) {
-    text3d(x, y + min(p$coords[,2]) - 1, z, text = label, color = "black", cex=0.7, pos = 1)
+    drawTexts( c(offset[1], offset[2] + min(p$coords[,2]) - 1, offset[3]), text = label, color = "black", cex=0.7, pos = 1)
   }
   if (length(p$faces) > 0) { 
     colors <- assignColors(p)
     for (f in seq(length(p$faces))) {
-      drawPolygon(p$faces[[f]], p$coords, colors[f], alpha, c(x, y, z), label=ifelse(debug,paste0("F",f),""), drawlines=debug) 
+      drawPolygon(p$faces[[f]], p$coords, colors[f], alpha, offset, label=ifelse(debug,fToStr(f),""), drawlines=debug) 
     }
   }
 }
@@ -284,11 +304,12 @@ drawSinglePoly <- function(p, x=0, y=0, z=0, label=ifelse(is.null(p$name),"",p$n
 drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debug=F)
 {
   if (!is.null(names(p))) { # not testing whether there is a name, testing whether this is a list with poly's or not
-    drawSinglePoly(p, start[1], start[2], start[3], ifelse(is.null(p$name), "", p$name), debug)
+    drawSinglePoly(p, offset=start, ifelse(is.null(p$name), "", p$name), debug)
   } else {
     for (i in seq(length(p))) {
-      drawSinglePoly(p[[i]], start[1] + (i-1)*delta[1], start[2] + (i-1)*delta[2], start[3] + (i-1)*delta[3], p[[i]]$name, debug)  
+      drawSinglePoly(p[[i]], offset=start+(i-1)*delta, p[[i]]$name, debug)  
     }
+    # overall label
     rgl.texts(start[1], start[2] + 2, start[3], text = label, color="blue", pos = 4, cex = 1)
   }
 }
@@ -297,7 +318,7 @@ drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debu
 # draw a n/d polygon
 testDrawPolygon <- function(n, d=1, label="")
 {
-  rgl_init()
+  drawInit()
   clear3d()
   drawAxes()
   angles <- ((0:(n-1))/n)*2*pi
@@ -308,6 +329,18 @@ testDrawPolygon <- function(n, d=1, label="")
   drawPolygon(face, coords, label=paste(n,d,sep="/"), drawlines = T)
   # simplified <- list(coords = coords, faces = list(face))
   # drawSinglePoly(simplified, debug=T)
+  
+  p <- dodecahedron
+  f1 <- p$coords[ p$faces[[1]], ]
+  clear3d()
+  polygon3d( f1[,1], f1[,2], f1[,3] ) # fine for simple planes
+  
+  p <- smallStellatedDodecahedron
+  f1 <- p$coords[ p$faces[[1]], ]
+  clear3d()
+  polygon3d( f1[,1], f1[,2], f1[,3] ) # triangulation fails for star polyhedra
+  drawStarPolygon(p$faces[[1]], p$coords) # works (TODO: why not interface with just coords?)
+  drawPolygon(p$faces[[1]], p$coords, label="Hello", drawlines=T, drawvertices=T)
 }
 
 testDrawPolygons <- function()

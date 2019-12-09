@@ -331,13 +331,9 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   if (debug) {
     clear3d()
     drawAxes()
-    segments3d( c(S1_P0[1],S1_P1[1],S2_P0[1], S2_P1[1]),
-                c(S1_P0[2],S1_P1[2],S2_P0[2], S2_P1[2]),
-                c(S1_P0[3],S1_P1[3],S2_P0[3], S2_P1[3]), color="blue")
-    text3d( c(S1_P0[1],S1_P1[1],S2_P0[1], S2_P1[1]),
-            c(S1_P0[2],S1_P1[2],S2_P0[2], S2_P1[2]),
-            c(S1_P0[3],S1_P1[3],S2_P0[3], S2_P1[3]), 
-            text=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="blue")
+    drawSegment(S1_P0, S1_P1, color="blue")
+    drawSegment(S2_P0, S2_P1, color="blue")
+    drawTexts(c(S1_P0, S1_P1, S2_P0, S2_P1), text=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="blue")
   }
   # Helper function to check if a point P is inside a collinear segment defined by two points
   # returns TRUE if P is inside segment, FALSE otherwise
@@ -400,13 +396,10 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
     print(u_2D)
     print(v_2D)
     
-    segments3d(c(lookup(S1_P0_2D, dims)[1],lookup(S1_P1_2D, dims)[1],lookup(S2_P0_2D, dims)[1], lookup(S2_P1_2D, dims)[1]),
-               c(lookup(S1_P0_2D, dims)[2],lookup(S1_P1_2D, dims)[2],lookup(S2_P0_2D, dims)[2], lookup(S2_P1_2D, dims)[2]),
-               c(lookup(S1_P0_2D, dims)[3],lookup(S1_P1_2D, dims)[3],lookup(S2_P0_2D, dims)[3], lookup(S2_P1_2D, dims)[3]), color="black")
-    text3d( c(lookup(S1_P0_2D, dims)[1],lookup(S1_P1_2D, dims)[1],lookup(S2_P0_2D, dims)[1], lookup(S2_P1_2D, dims)[1]),
-            c(lookup(S1_P0_2D, dims)[2],lookup(S1_P1_2D, dims)[2],lookup(S2_P0_2D, dims)[2], lookup(S2_P1_2D, dims)[2]),
-            c(lookup(S1_P0_2D, dims)[3],lookup(S1_P1_2D, dims)[3],lookup(S2_P0_2D, dims)[3], lookup(S2_P1_2D, dims)[3]), 
-            text=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="black")
+    drawSegment(lookup(S1_P0_2D, dims), lookup(S1_P1_2D, dims), color="black")
+    drawSegment(lookup(S2_P0_2D, dims), lookup(S2_P1_2D, dims), color="black")
+    drawTexts(c(lookup(S1_P0_2D, dims),lookup(S1_P1_2D, dims),lookup(S2_P0_2D, dims), lookup(S2_P1_2D, dims)),
+              text=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="black")
   }
   
   w <- S1_P0_2D - S2_P0_2D

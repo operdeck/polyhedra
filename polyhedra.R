@@ -137,8 +137,8 @@ buildRegularPoly <- function(coords, polygonsize, vertexsize, exampleEdge = c(1,
   
   if (debug) {
     spacing <- 0.1
-    spheres3d(coords[,1], coords[,2], coords[,3], color="green", radius = 0.02)
-    text3d((1+spacing)*coords[,1], (1+spacing)*coords[,2], (1+spacing)*coords[,3], text = seq(nrow(coords)), color="blue")
+    drawDots(coords, color="green", radius = 0.02)
+    drawTexts((1+spacing)*coords, text = seq(nrow(coords)), color="blue")
   }
   
   # Determine global edge size from given example edge
@@ -252,17 +252,11 @@ truncate <- function(p, name = paste("truncate", p$name), debug=F)
   for(v in p$vertexFigures) 
   {
     if(debug){
-      text3d( x=p$coords[v$center,1], 
-              y=p$coords[v$center,2], 
-              z=p$coords[v$center,3], color="red", texts = v$center)
-      for (p in v$vex) 
+      drawTexts(p$coords[v$center,], text = v$center, color="red")
+      for (pt in v$vex) 
       {
-        lines3d( x=p$coords[c(v$center, p),1], 
-                 y=p$coords[c(v$center, p),2], 
-                 z=p$coords[c(v$center, p),3], color="blue")
-        text3d( x=p$coords[p,1], 
-                y=p$coords[p,2], 
-                z=p$coords[p,3], color="red", texts = p)
+        drawLines(p$coords[c(v$center, pt),], color="blue")
+        drawTexts(p$coords[pt,], text = pt, color="red")
       }
     }
     # new point from center of vertex figure is on line to connected point at relative distance alpha
@@ -274,9 +268,9 @@ truncate <- function(p, name = paste("truncate", p$name), debug=F)
     newpts[[v$center]]$center <- v$center
     newpts[[v$center]]$connected <- v$vex
     if (debug) {
-      text3d( x=newpts[[v$center]]$x, 
-              y=newpts[[v$center]]$y, 
-              z=newpts[[v$center]]$z, color="darkgreen", texts = newpts[[v$center]]$connected)
+      drawDots(as.matrix(newpts[[v$center]][,c("x","y","z")]), color="darkgreen", radius=0.01)
+      drawTexts(as.matrix(newpts[[v$center]][,c("x","y","z")]),
+                text = newpts[[v$center]]$connected, color="darkgreen")
     }
   }
   
@@ -333,8 +327,8 @@ rhombic <- function(p, name=paste("rhombic", p$name), debug=F)
     if (debug) {
       center1 <- apply(p$coords[p$faces[[F1]],], 2, mean)
       center2 <- apply(p$coords[p$faces[[F2]],], 2, mean)
-      polyLines(c(center1, center1+n1), color = "red")
-      polyLines(c(center2, center2+n2), color = "red")
+      drawLines(c(center1, center1+n1), color = "red")
+      drawLines(c(center2, center2+n2), color = "red")
     }
     
     dp1p2 <- distance(p$coords[P1,], p$coords[P2,])
@@ -347,7 +341,7 @@ rhombic <- function(p, name=paste("rhombic", p$name), debug=F)
     p2_b <- p$coords[P2,] + alpha*n1
     
     if (debug) {
-      polyLines(c(p1_a, p1_b, p2_a, p2_b, p1_a), color="green")
+      drawLines(c(p1_a, p1_b, p2_a, p2_b, p1_a), color="green")
     }
     
     newFace[[1+length(newFace)]] <- 
@@ -620,7 +614,7 @@ testRhombic <- function()
   clear3d()
   drawPoly(p, debug = T)
   
-  rgl_init(new.device = T)
+  drawInit(new.device = T)
   clear3d()
   drawAxes()
   r <- rhombic(p, debug=F)

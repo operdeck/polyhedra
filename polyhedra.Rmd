@@ -33,7 +33,7 @@ octahedron <- buildRegularPoly(coords = rbind(expand.grid(x = c(-1,1), y = 0, z 
 ```
 
 ```{r, include=F}
-rgl_init(width=400, height=400)
+drawInit(width=400, height=400)
 drawSinglePoly(octahedron, debug = T)
 snapshot3d("snapshots/octahedron.png", fmt = "png", top = TRUE )
 ```
@@ -52,7 +52,7 @@ Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
 
 ```{r, include=F}
 # TODO use screen better / other viewpoint
-rgl_init(width=640, height=400, new.device = T)
+drawInit(width=640, height=400, new.device = T)
 drawPoly(Platonics, start = c(1, 1, 1), delta = c(2, 0, 0), label = "Platonic solids")
 snapshot3d("snapshots/platonics.png", fmt = "png", top = TRUE )
 ```

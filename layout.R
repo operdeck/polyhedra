@@ -13,16 +13,6 @@ source("polyhedra.R") # only for testing
 
 set.seed(1234)
 
-eToStr <- function(polyhedron3D, e)
-{
-  return (paste0(e, " (", paste(sort(polyhedron3D$edgeToVertices[e,]),collapse="-"), ")"))  
-}
-
-fToStr <- function(f)
-{
-  return(paste0("F",f))
-}
-
 elapsedTimeToStr <- function()
 {
   secs <- as.double(difftime(Sys.time(), startTime, units = "secs"))
@@ -596,7 +586,7 @@ testLayout <- function()
   #drawPoly(xx, debug=T)
   
   # for layout use a new device
-  # rgl_init(new.device = T)
+  # drawInit(new.device = T)
   # clear3d()
   # drawAxes()
   
@@ -715,7 +705,6 @@ allFaceIntersections <- function(poly)
                                    faceCoords[j,], 
                                    faceCoords[(j%%nrow(faceCoords))+1,], 
                                    firstIsLine = T)
-      
       # if (intersectionLines[i]$F2==4) {
       #   print(i_seg)
       # }
@@ -787,35 +776,10 @@ hull <- function(poly)
   }
   for (i in which(segments$F1 == primaryFace | segments$F2 == primaryFace))  {
     # for debugging only:  
-    spheres3d(hullCoords[[segments[i]$S0]] [1], hullCoords[[segments[i]$S0]] [2], hullCoords[[segments[i]$S0]] [3], color="red", radius = 0.03)
-    spheres3d(hullCoords[[segments[i]$S1]] [1], hullCoords[[segments[i]$S1]] [2], hullCoords[[segments[i]$S1]] [3], color="red", radius = 0.03)
-    text3d(spacing*hullCoords[[segments[i]$S0]] [1], spacing*hullCoords[[segments[i]$S0]] [2], spacing*hullCoords[[segments[i]$S0]] [3], text=segments[i]$S0, color="red", radius = 0.03)
-    text3d(spacing*hullCoords[[segments[i]$S1]] [1], spacing*hullCoords[[segments[i]$S1]] [2], spacing*hullCoords[[segments[i]$S1]] [3], text=segments[i]$S1, color="red", radius = 0.03)
-    
-    if ("P0_x" %in% names(segments)) {
-      # these represent the line begin/ends but only present when merged in (only for deep debugging)
-      lines3d(c(segments[i]$P0_x, segments[i]$P1_x), 
-              c(segments[i]$P0_y, segments[i]$P1_y), 
-              c(segments[i]$P0_z, segments[i]$P1_z), 
-              color="red")
-      text3d(mean(c(segments[i]$P0_x, segments[i]$P1_x)), 
-             mean(c(segments[i]$P0_y, segments[i]$P1_y)), 
-             mean(c(segments[i]$P0_z, segments[i]$P1_z)), 
-             color="red",text=paste(segments[i]$F1,segments[i]$F2,sep = "-"))
-    }
-    
-    lines3d(0.01+c(hullCoords[[segments[i]$S0]][1], hullCoords[[segments[i]$S1]][1]), 
-            0.01+c(hullCoords[[segments[i]$S0]][2], hullCoords[[segments[i]$S1]][2]), 
-            0.01+c(hullCoords[[segments[i]$S0]][3], hullCoords[[segments[i]$S1]][3]), 
-            color="blue")
-    text3d(0.01+mean(c(hullCoords[[segments[i]$S0]][1], hullCoords[[segments[i]$S1]][1])), 
-           0.01+mean(c(hullCoords[[segments[i]$S0]][2], hullCoords[[segments[i]$S1]][2])), 
-           0.01+mean(c(hullCoords[[segments[i]$S0]][3], hullCoords[[segments[i]$S1]][3])), 
-           color="blue", text=paste(fToStr(segments[i]$F1),fToStr(segments[i]$F2),sep = "-"))
-    
+    drawDots(c(hullCoords[[segments[i]$S0]], hullCoords[[segments[i]$S1]]), color="red", radius = 0.03)
+    drawTexts(spacing*hullCoords[[segments[i]$S0]], text=segments[i]$S0, color="red")
+    drawTexts(spacing*hullCoords[[segments[i]$S1]], text=segments[i]$S1, color="red")
   }
-  
-  stop("Refactored segment representation till here with global hull coords and edges")
   
   # below belongs in segmentation routine too
   
@@ -839,7 +803,7 @@ hull <- function(poly)
           !deltaEquals(0, distance(i_seg$I0, seg2_start)) & !deltaEquals(0, distance(i_seg$I0, seg2_end))) 
       {
         print("New pt")
-        spheres3d(i_seg$I0[1], i_seg$I0[2], i_seg$I0[3], color="purple", radius = 0.04)
+        drawDots(i_seg$I0, color="purple", radius = 0.04)
       }
     }
   }
