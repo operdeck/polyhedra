@@ -260,15 +260,17 @@ The "quasi" transformation of this turns it into the compound of 5 octahedra.
 
 ```{r}
 compound5octahedra <- quasi(compound5tetrahedra, name = "5 Octahedra")
+compound5truncatedTetrahedra <- truncate(compound5tetrahedra)
 ```
 
 ```{r, include=F}
 clear3d()
-drawSinglePoly(compound5octahedra)
-snapshot3d("snapshots/compound5octahedra.png", fmt = "png", top = TRUE )
+drawPoly(list(compound5octahedra, compound5truncatedTetrahedra),
+         start = c(1, 1, 1), delta = c(2, -0.5, 0), "Transformations of 5 Tetrahedra")
+snapshot3d("snapshots/trafo5octahedra.png", fmt = "png", top = TRUE )
 ```
 
-![5 Octahedra](snapshots/compound5octahedra.png)
+![5 Octahedra](snapshots/trafo5octahedra.png)
 
 Combining it with its dual creates 10 tetrahedra.
 
@@ -276,17 +278,17 @@ NB currently issues with rendering, probably because there are overlapping faces
 creating a sort of {6/2} face out of two {3} that is not drawn properly.
 
 ```{r}
-compound10terahedra <- compose(compound5tetrahedra, dual(compound5tetrahedra), 
+compound10tetrahedra <- compose(compound5tetrahedra, dual(compound5tetrahedra), 
                                name = "10 Tetrahedra")
 ```
 
 ```{r, include=F}
 clear3d()
-drawSinglePoly(compound10terahedra)
-snapshot3d("snapshots/compound10terahedra.png", fmt = "png", top = TRUE )
+drawSinglePoly(compound10tetrahedra)
+snapshot3d("snapshots/compound10tetrahedra.png", fmt = "png", top = TRUE )
 ```
 
-![10 Tetrahedra](snapshots/compound10terahedra.png)
+![10 Tetrahedra](snapshots/compound10tetrahedra.png)
 
 ## 5 Cubes and derived
 

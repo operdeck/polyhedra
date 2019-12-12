@@ -2,6 +2,11 @@ library(rgl)
 library(data.table)
 source("geometry.R")
 
+# NB gradient colors possible e.g.
+# triangles3d(x=c(1,3,2),y=c(2,3,1),z=c(0,0,0),color=c("blue","yellow"))
+# args to 3d can be matrix e.g. points3d(cube$coords)
+# lines3d(matrix(c(1,2,3,1,2,6),ncol=3,byrow=T),color="grey")
+
 eToStr <- function(poly, e)
 {
   return (paste0(e, " (", paste(sort(poly$edgeToVertices[e,]),collapse="-"), ")"))  
@@ -29,22 +34,23 @@ drawSegment <- function(coordsFrom, coordsTo, ...)
   segments3d(c(coordsFrom[1], coordsTo[1]), c(coordsFrom[2], coordsTo[2]), c(coordsFrom[3], coordsTo[3]), ...)
 }
 
-drawLines <- function(coords, ...)
+drawLines <- function(coords, closed=F, ...)
 {
   if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
-  lines3d(coords[,1], coords[,2], coords[,3], ...)
+  lines3d(coords, ...)
+  if (closed) lines3d(coords[c(nrow(coords),1),], ...)
 }
 
 drawDots <- function(coords, ...)
 {
   if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
-  spheres3d(coords[,1], coords[,2], coords[,3], ...)
+  spheres3d(coords, ...)
 }
 
 drawTexts <- function(coords, text, ...)
 {
   if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
-  text3d(coords[,1], coords[,2], coords[,3], text=text, ...)
+  text3d(coords, text=text, ...)
 }
 
 #open3d()
@@ -62,17 +68,13 @@ drawTexts <- function(coords, text, ...)
 
 
 # the rgl method is not reliable so still doing it myself
-drawPolygonTriangulate <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0))
+drawConvexPolygon <- function(coords, ...)
 {
-  if (length(face) < 3) stop("Face to triangulate should have >= 3 points.")
+  if (nrow(coords) < 3) stop("Face to triangulate should have >= 3 points.")
 
-  for (t in (seq(length(face)-2)+1)) {
-    triangle <- coords[c(face[1], face[t], face[t+1]),]
+  for (t in (seq(nrow(coords)-2)+1)) {
     # NB not sure about the orientation of the triangle - may have to check on this
-    triangles3d( offset[1] + triangle[,1],
-                 offset[2] + triangle[,2],
-                 offset[3] + triangle[,3],
-                 col=col, alpha=alpha)
+    triangles3d(coords[c(1, t, t+1),], ...)
   }
 }
 
@@ -84,112 +86,60 @@ drawPolygonTriangulate <- function(face, coords, col="grey", alpha=1, offset=c(0
 # this function should just be a "decompose", returning a list of simple faces that can
 # be passed on to actual drawing functions.
 
-drawStarPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), debug=F)
+drawStarPolygon <- function(coords, ...)
 {
-  # Find all line segment pairs of this face, excluding line segments that are already adjecent to eachother.
-  segmentPairs <- as.data.table(t(combn(seq(length(face)),2)))
-  segmentPairs <- segmentPairs[abs(V1-V2)>1 & abs(V1-(V2%%length(face)))>1]
-  
-  # A-B and C-D are the vertex indices of the segment pairs that will be checked for intersection
-  A <- face[unlist(segmentPairs[,1])]
-  B <- shiftrotate(face)[unlist(segmentPairs[,1])]
-  C <- face[unlist(segmentPairs[,2])]
-  D <- shiftrotate(face)[unlist(segmentPairs[,2])]
-  
-  # The segment intersections will be calculated from the coordinates of the 4 points
-  intersections <- data.table( 
-    seg1From = A, seg1To = B, seg2From = C, seg2To = D, # keep the vertex indices
-    Ax = coords[A,1], Ay = coords[A,2], Az = coords[A,3],
-    Bx = coords[B,1], By = coords[B,2], Bz = coords[B,3],
-    Cx = coords[C,1], Cy = coords[C,2], Cz = coords[C,3],
-    Dx = coords[D,1], Dy = coords[D,2], Dz = coords[D,3])
-  
-  # The math to calculate the intersection is easily derived. The intersections are at A + alpha BA = C + beta DC. We want
-  # both alpha and beta and both in a numerical stable way because the very compact list of segment pairs we started with,
-  # so we may need to swap AB and CD and thus alpha and beta etc. But can still be singular!
-  
-  intersections[, beta  := ((Cx-Ax)*(By-Ay) - (Cy-Ay)*(Bx-Ax)) / ((Dy-Cy)*(Bx-Ax) - (Dx-Cx)*(By-Ay))]
-  intersections[, alpha := ((Ax-Cx)*(Dy-Cy) - (Ay-Cy)*(Dx-Cx)) / ((By-Ay)*(Dx-Cx) - (Bx-Ax)*(Dy-Cy))]
-  if (any(is.na(intersections$beta) | is.na(intersections$alpha))) {
-    intersections[, beta  := ((Cz-Az)*(By-Ay) - (Cy-Ay)*(Bz-Az)) / ((Dy-Cy)*(Bz-Az) - (Dz-Cz)*(By-Ay))]
-    intersections[, alpha := ((Az-Cz)*(Dy-Cy) - (Ay-Cy)*(Dz-Cz)) / ((By-Ay)*(Dz-Cz) - (Bz-Az)*(Dy-Cy))]
-    if (any(is.na(intersections$beta) | is.na(intersections$alpha))) {
-      intersections[, beta  := ((Cz-Az)*(Bx-Ax) - (Cx-Ax)*(Bz-Az)) / ((Dx-Cx)*(Bz-Az) - (Dz-Cz)*(Bx-Ax))]
-      intersections[, alpha := ((Az-Cz)*(Dx-Cx) - (Ax-Cx)*(Dz-Cz)) / ((Bx-Ax)*(Dz-Cz) - (Bz-Az)*(Dx-Cx))]
-      if (any(is.na(intersections$beta) | is.na(intersections$alpha))) {
-        stop("No intersections - still singular")
-      }
-    }
+  #drawTexts(coords,text=seq(nrow(coords)))
+  #drawLines(coords, closed=T)
+  intersections <- as.data.table(t(combn(seq(nrow(coords)),2)))[ V2 != (V1+1) & (V1-1) != (V2 %% nrow(coords))]
+  n<-nrow(coords)
+  intersectionPts <- rbindlist(lapply(seq(nrow(intersections)), function(i) {
+    intersection <- intersect_2Segments(coords[intersections[i]$V1,], coords[(intersections[i]$V1 %% n)+1,], 
+                                        coords[intersections[i]$V2,], coords[(intersections[i]$V2 %% n)+1,])
+    if (intersection$status != "intersect" || is.na(intersection$alpha) || is.na(intersection$beta)) return()
+    return(data.table(seg1a = intersections[i]$V1, seg1b = (intersections[i]$V1 %% n)+1,
+                      seg2a = intersections[i]$V2, seg2b = (intersections[i]$V2 %% n)+1,
+                      f1 = intersection$alpha, f2 = intersection$beta,
+                      x = intersection$I0[1], y = intersection$I0[2], z = intersection$I0[3]))
+  }))
+  if (nrow(intersectionPts) == 0) {
+    stop("No intersections") # delegate to convex?
   }
   
-  # Intersections are only the ones for which alpha and beta are in 0-1 range. The intersections are not in a particular
-  # order although we would want that. Ordering them by inner angle in 3D turns out to be mathematically impossible although
-  # potentially we could use the direction of the inner vectors wrt the direction of the inner vector of the whole face.
-  intersections <- intersections[alpha<1 & alpha>0 & beta<1 & beta>0]
-  intersections[, c("Ix","Iy","Iz") := list(Ax + alpha*(Bx-Ax), Ay + alpha*(By-Ay), Az + alpha*(Bz-Az))]
-  intersections[, intersectionIdx := seq(.N)]
-  
-  # for debugging only:
-  if (debug) {
-    spheres3d(intersections$Ix, intersections$Iy, intersections$Iz, color="green", radius = 0.02)
-    text3d(intersections$Ix+0.05, intersections$Iy, intersections$Iz, color="black", text=intersections$intersectionIdx)
-  }
-  
-  # Intersections is a very compact representation, expand it to get a list from all face vertices to all intersection points.
-  allIntersections <- rbind(data.table(from = intersections$seg1From,
-                                       to = intersections$seg1To,
-                                       alpha = intersections$alpha,
-                                       Ix = intersections$Ix, Iy = intersections$Iy, Iz = intersections$Iz, intersectionIdx = intersections$intersectionIdx),
-                            data.table(from = intersections$seg1To,
-                                       to = intersections$seg1From,
-                                       alpha = (1-intersections$alpha),
-                                       Ix = intersections$Ix, Iy = intersections$Iy, Iz = intersections$Iz, intersectionIdx = intersections$intersectionIdx),
-                            data.table(from = intersections$seg2From,
-                                       to = intersections$seg2To,
-                                       alpha = intersections$beta,
-                                       Ix = intersections$Ix, Iy = intersections$Iy, Iz = intersections$Iz, intersectionIdx = intersections$intersectionIdx),
-                            data.table(from = intersections$seg2To,
-                                       to = intersections$seg2From,
-                                       alpha = (1-intersections$beta),
-                                       Ix = intersections$Ix, Iy = intersections$Iy, Iz = intersections$Iz, intersectionIdx = intersections$intersectionIdx))
-  
-  # Then, for each of the line segments of the face, cut it at the nearest intersection point. 
-  allIntersections <- allIntersections[, isClosestIntersection := (seq(.N) == which.min(alpha)), by=c("from", "to")]
-  allIntersections <- allIntersections[(isClosestIntersection)][order(from, to)]
-  
-  # Now, we can draw the stars by drawing triangles from each of the face vertices to the intersection points connected to it. 
-  # Then draw by providing triplets with the vertices of the triangles.
-  triangles <- dcast(allIntersections[, triangleside:=seq(.N), by=from], from~triangleside, value.var=c("Ix","Iy","Iz"))
-  triangles3d(offset[1] + as.numeric(sapply(seq(nrow(triangles)), function(t) {c(triangles$Ix_1[t], triangles$Ix_2[t], coords[triangles$from[t],1])})),
-              offset[2] + as.numeric(sapply(seq(nrow(triangles)), function(t) {c(triangles$Iy_1[t], triangles$Iy_2[t], coords[triangles$from[t],2])})),
-              offset[3] + as.numeric(sapply(seq(nrow(triangles)), function(t) {c(triangles$Iz_1[t], triangles$Iz_2[t], coords[triangles$from[t],3])})),
-              col=col, alpha=alpha)
-
-  # To draw the middle piece we need the intersections in order. Sorting by inner angle doesnt work in 3D so we do it
-  # simply by going round and each time finding the closest intersection that is not used yet. Might be somewhat slow.
-  middlepolygon <- unique(allIntersections[, c("intersectionIdx", "Ix", "Iy", "Iz")])
-  middlepolygon[, rank := 0]
-  currentPt <- 3 # start somewhere randomly
-  nAssignedOrder <- 0
+  currentSegStart <- 1
+  center <- apply(coords, 2, mean)
+  cnt <- 0
   repeat {
-    middlepolygon[(currentPt), rank := 1+nAssignedOrder]
-    nAssignedOrder <- nAssignedOrder+1
-    if (nAssignedOrder == nrow(middlepolygon)) {
-      break
+    currentSegEnd <- (currentSegStart %% n)+1
+    alphas <- sapply(seq(nrow(intersectionPts)), function(i) {
+      if (intersectionPts[i]$seg1a==currentSegStart & intersectionPts[i]$seg1b==currentSegEnd) return(intersectionPts[i]$f1)
+      if (intersectionPts[i]$seg1b==currentSegStart & intersectionPts[i]$seg1a==currentSegEnd) return(1-intersectionPts[i]$f1)
+      if (intersectionPts[i]$seg2a==currentSegStart & intersectionPts[i]$seg2b==currentSegEnd) return(intersectionPts[i]$f2)
+      if (intersectionPts[i]$seg2b==currentSegStart & intersectionPts[i]$seg2a==currentSegEnd) return(1-intersectionPts[i]$f2)
+      return(Inf)
+    })
+    l <- which.min(alphas)
+    #drawDots(intersectionPts[l, 7:9], radius=0.03, color="purple")
+    triangles3d(matrix(c(center, intersectionPts[l, 7:9], coords[currentSegStart, ]), ncol = 3, byrow=T), ...)
+    if (intersectionPts[l]$seg1a==currentSegStart | intersectionPts[l]$seg1b==currentSegStart) {
+      pNext <- ifelse(intersectionPts[l]$f2 < 0.5, intersectionPts[l]$seg2a, intersectionPts[l]$seg2b)   
     } else {
-      distances <- sqrt(rowSums((t(t(middlepolygon[(rank==0),2:4]) - as.numeric(middlepolygon[currentPt,2:4])))^2))  
-      nextPt <- which(middlepolygon$rank==0)[which.min(distances)[1]]
+      pNext <- ifelse(intersectionPts[l]$f1 < 0.5, intersectionPts[l]$seg1a, intersectionPts[l]$seg1b)   
     }
-    currentPt <- nextPt
+    triangles3d(matrix(c(center, intersectionPts[l, 7:9], coords[pNext, ]), ncol = 3, byrow=T), ...)
+    cnt <- cnt+1
+    if (cnt > nrow(coords)) break;
+    if (pNext == 1) break
+    currentSegStart <- pNext
   }
-  drawPolygonTriangulate(order(middlepolygon$rank), as.matrix(middlepolygon[,c("Ix","Iy","Iz"),with=F]), col=col, offset=offset)
+  if (cnt != nrow(coords)) warning(paste("Different # of intersection points than expected. Found", 
+                                      cnt, "intersections from", nrow(intersectionPts), "candidates, expected", nrow(coords)))
 }
 
 drawAxes <- function()
 {
-  arrow3d(p0 = c(0,0,0), p1=c(1.8,0,0), width=0.2, type="rotation")
-  arrow3d(p0 = c(0,0,0), p1=c(0,1.8,0), width=0.2, type="rotation")
-  arrow3d(p0 = c(0,0,0), p1=c(0,0,1.8), width=0.2, type="rotation")
+  arrow3d(p0 = c(0,0,0), p1=c(1.8,0,0), width=0.1, type="rotation")
+  arrow3d(p0 = c(0,0,0), p1=c(0,1.8,0), width=0.1, type="rotation")
+  arrow3d(p0 = c(0,0,0), p1=c(0,0,1.8), width=0.1, type="rotation")
   texts3d(c(2,0,0), c(0,2,0), c(0,0,2), text = c("x","y","z"), color="black")
 }
 
@@ -198,7 +148,7 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
   spacing <- 0.1
   center <- apply(coords[face,], 2, mean)
   if (drawlines) {
-    drawLines(t(t(coords[c(face, face[1]),]) + offset), color="orange")
+    drawLines(t(t(coords[face,]) + offset), closed=T, color="orange")
   }
   if (drawvertices) {
     drawDots(t(offset + t(coords[face,])), color="green", radius = 0.02)
@@ -210,22 +160,19 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
   
   # NB face orientation is not normalized
   if (length(face) == 3) {
-    triangles3d( offset[1] + coords[face,1],
-                 offset[2] + coords[face,2],
-                 offset[3] + coords[face,3],
-                 col=col, alpha=alpha)
+    drawConvexPolygon(t(t(coords[face,])+offset), col=col, alpha=alpha)
   } else if (length(face) > 3) {
     ang <- innerAngles(coords[face,])
     
     if((sum(ang) > 2*pi) & !deltaEquals(sum(ang), 2*pi)) {
       if (!isFlatFace(coords[face,])) {
-        drawPolygonTriangulate(face, coords, col, alpha, offset)
+        drawConvexPolygon(t(t(coords[face,])+offset), col=col, alpha=alpha)
         drawTexts(offset + center, text = "!", color="white")
       } else {
-        drawStarPolygon(face, coords, col, alpha, offset)
+        drawStarPolygon(t(t(coords[face,])+offset), col=col, alpha=alpha)
       }
     } else {
-      drawPolygonTriangulate(face, coords, col, alpha, offset)
+      drawConvexPolygon(t(t(coords[face,])+offset), col=col, alpha=alpha)
     }
   }
 }
@@ -316,7 +263,7 @@ drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debu
 # rgl.close()
 
 # draw a n/d polygon
-testDrawPolygon <- function(n, d=1, label="")
+testDrawPolygon <- function(n, d=1)
 {
   drawInit()
   clear3d()
@@ -329,6 +276,20 @@ testDrawPolygon <- function(n, d=1, label="")
   drawPolygon(face, coords, label=paste(n,d,sep="/"), drawlines = T)
   # simplified <- list(coords = coords, faces = list(face))
   # drawSinglePoly(simplified, debug=T)
+}
+
+testDrawPolygons <- function()
+{
+  testDrawPolygon(3)
+  testDrawPolygon(4) # triangulization
+  testDrawPolygon(5) 
+  #testDrawPolygon(6,2) # interesting case but would create multiple faces really
+  testDrawPolygon(5,2) # simple star
+  testDrawPolygon(7,2) 
+  testDrawPolygon(7,3) 
+  testDrawPolygon(8,3) # more complex star
+  #testDrawPolygon(8,2) # also a star, generation of this is slightly more complex
+  
   
   p <- dodecahedron
   f1 <- p$coords[ p$faces[[1]], ]
@@ -341,17 +302,7 @@ testDrawPolygon <- function(n, d=1, label="")
   polygon3d( f1[,1], f1[,2], f1[,3] ) # triangulation fails for star polyhedra
   drawStarPolygon(p$faces[[1]], p$coords) # works (TODO: why not interface with just coords?)
   drawPolygon(p$faces[[1]], p$coords, label="Hello", drawlines=T, drawvertices=T)
-}
-
-testDrawPolygons <- function()
-{
-  testDrawPolygon(3)
-  testDrawPolygon(4) # triangulization
-  testDrawPolygon(5) 
-  #testDrawPolygon(6,2) # interesting case but would create multiple faces really
-  testDrawPolygon(5,2) # simple star
-  testDrawPolygon(8,3) # more complex star
-  #testDrawPolygon(8,2) # also a star, generation of this is slightly more complex
+  
 }
 
 ## Debugging / Testing

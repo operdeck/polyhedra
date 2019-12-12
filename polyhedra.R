@@ -246,7 +246,7 @@ quasi <- function(p, name=paste("quasi", p$name), debug=F)
 
 # creates new faces at the vertices of the old solid, changing 
 # existing faces to have twice as many points
-truncate <- function(p, name = paste("truncate", p$name), debug=F)
+truncate <- function(p, name = paste("truncated", p$name), debug=F)
 {
   newpts <- list()
   for(v in p$vertexFigures) 
@@ -464,11 +464,16 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
 # clear3d()
 # drawSinglePoly(truncate(cube), debug=T)
 
+name <- function(p)
+{
+  return(p$name)
+}
+
 description <- function(p, debug=F)
 {
   combineDescriptions <- function(descrs, suffixIdentical = "")
   {
-    descrFreqs <- data.table(table(unlist(descrs)), stringsAsFactors = F)
+    descrFreqs <- data.table(table(unlist(descrs)), stringsAsFactors = F)[order(-N,V1)]
     if (nrow(descrFreqs) == 1) {
       # all are identical
       if (descrFreqs$N[1] == 1) {
@@ -480,6 +485,7 @@ description <- function(p, debug=F)
       }
     } else {
       # returning them as a frequency table (12 x a + 5 x b)
+      #print(descrFreqs)
       return(paste(sapply(seq(nrow(descrFreqs)), 
                           function(i) {return(paste0(descrFreqs$N[i], "x", descrFreqs$V1[i]))}), collapse=" + "))
     }
@@ -521,9 +527,11 @@ description <- function(p, debug=F)
     if (length(unique(faceDescriptions)) == 1 & length(unique(vexDescriptions)) == 1) {
       vexDescription <- paste0("{",faceDescriptions[1],",",vexDescriptions[1],"}")
     } else {
-      # shiftrotate them so we consistently take the same one
-      descrs <- sapply(1:length(faceDescriptions), function(i) {return(paste(shiftrotate(faceDescriptions,i+1),collapse=","))})
-      vexDescription <- paste0("{",(sort(descrs))[1],"}") 
+      # create rotate variations then find the one with lowest sort order
+      faceDescriptionRotations <- sapply(1:length(faceDescriptions), function(i) {
+        return(paste(shiftrotate(faceDescriptions,i-1),collapse=","))
+        })
+      vexDescription <- paste0("{",(sort(faceDescriptionRotations))[1],"}") 
     }
     
     return(vexDescription)
@@ -620,16 +628,3 @@ testRhombic <- function()
   r <- rhombic(p, debug=F)
   drawPoly(r)
 }
-# p <- octahedron #smallStellatedDodecahedron
-# f <- p$faces[[1]]
-# innerAngles(p$coords[f,])*360/2/pi
-
-# to test the above
-# p1<-smallStellatedDodecahedron
-# p2<-dual(p1, scaling="vertex")
-
-# # checking the normals of the face
-# p <- octahedron
-# drawPoly(p, debug=T)
-
-

@@ -355,14 +355,14 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   }
   
   buildResult <- function(status, dims, substatus="",
-                          I0=NULL, I1=NULL, I0_check=NULL, I1_check=NULL) 
+                          I0=NULL, I1=NULL, I0_check=NULL, I1_check=NULL, alpha=NA, beta=NA) 
   {
-    # todo check I0/I1 check changing overlap/intersection to something else potentially
+    # TODO check I0/I1 check changing overlap/intersection to something else potentially
     if (!is.null(I0)) {
       if (!is.null(I1)) {
         return (list(status=status, I0=I0, I1=I1, dims=dims, substatus=substatus))
       }
-      return (list(status=status, I0=I0, dims=dims, substatus=substatus))
+      return (list(status=status, I0=I0, alpha=alpha, beta=beta, dims=dims, substatus=substatus))
     }
     return (list(status=status, dims=dims, substatus=substatus))
   }
@@ -516,7 +516,7 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   }
   
   # compute S1 intersect point
-  return(buildResult("intersect", dims=dims, substatus="collinear", I0=S1_P0 + sI * u, I0_check=S2_P0 + tI * v))
+  return(buildResult("intersect", dims=dims, I0=S1_P0 + sI * u, I0_check=S2_P0 + tI * v, alpha=sI, beta=tI))
 }
 
 #' Create normal implicit representation of a plane defined by three vertices.

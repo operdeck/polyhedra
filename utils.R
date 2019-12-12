@@ -1,4 +1,5 @@
 # shift elements from f up or down
+# NB does not work as expected for n > |x|
 shiftrotate <- function(x, n = 1) {
   if (n == 0) x else c(tail(x, -n), head(x, n))
 }
