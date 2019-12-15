@@ -624,13 +624,12 @@ segmentation <- function(poly)
   
   #poly <- compose(tetrahedron, dual(tetrahedron))
   #poly <- greatDodecahedron
+  #poly <- greatIcosahedron
   
   spacing <- 1.1
   debug<-T
-  if (debug) {
-    primaryFace<-1
-  }
-  
+  debugPrimaryFace<-1
+
   hullCoords <<- as.list(as.data.table(t(poly$coords))) 
   vexCells <- which(upper.tri(poly$coordPairToEdge) & (poly$coordPairToEdge != 0))
   hullEdges <<- lapply(vexCells, function(edge) {
@@ -641,9 +640,11 @@ segmentation <- function(poly)
                        F1=poly$coordPairToFaces[row,col], F2=poly$coordPairToFaces[col,row]))
   })
   if (debug) {
-    hullEdges <- hullEdges[sapply(hullEdges, function(e) { return(e$F1 == primaryFace || e$F2 == primaryFace)})]
     clear3d()
-    drawPolygon(poly$faces[[primaryFace]], poly$coords, alpha=0.5, col = "yellow", label=fToStr(primaryFace), drawlines=T, drawvertices=T)
+    if (!is.na(debugPrimaryFace)) {
+      hullEdges <- hullEdges[sapply(hullEdges, function(e) { return(e$F1 == debugPrimaryFace || e$F2 == debugPrimaryFace)})]
+      drawPolygon(poly$faces[[debugPrimaryFace]], poly$coords, alpha=0.5, col = "yellow", label=fToStr(debugPrimaryFace), drawlines=T, drawvertices=T)
+    }
   }
 
   getHullCoordIdx <- function(p)
@@ -665,6 +666,15 @@ segmentation <- function(poly)
     if (length(idx) == 0) return(NULL)
     return(idx)
   }
+
+  findHullSourceEdge <- function(a, b)
+  {
+    idx <- which(sapply(hullEdges, function(edge) {
+      return( (edge$srcVex1==a && edge$srcVex2==b) || (edge$srcVex1==b && edge$srcVex2==a))
+    }))   
+    if (length(idx) == 0) return(NULL)
+    return(idx)
+  }
   
   addHullEdge <- function(a, b, F1, F2=F1, srca=NA, srcb=NA)
   {
@@ -676,7 +686,33 @@ segmentation <- function(poly)
   splitHullEdge <- function(a, b, mid)
   {
     if (b != mid & a != mid) {
+      # a_mid <- findHullEdge(a,mid)
+      # b_mid <- findHullEdge(b,mid)
+      # if (!is.null(a_mid) && !is.null(b_mid)) return() # already have both
       old <- findHullEdge(a,b)
+      # if old no longer exists find (possibly multiple) edges that have a/b as the source edge
+      # then determine in which one "mid" is and swap that for a/b
+      if (is.null(old)) {
+        segmentSplits <- findHullSourceEdge(a,b)
+        segmentSplit <- which(sapply(hullEdges[segmentSplits], function(e) {
+          pointSegmentCheck <- 
+            intersect_2Segments(hullCoords[[mid]], hullCoords[[mid]], 
+                                hullCoords[[e$vex1]], hullCoords[[e$vex2]])
+          if (pointSegmentCheck$status != "intersect") return(FALSE)
+          if (deltaEquals(distance(pointSegmentCheck$I0, hullCoords[[e$vex1]]), 0)) return(FALSE)
+          if (deltaEquals(distance(pointSegmentCheck$I0, hullCoords[[e$vex2]]), 0)) return(FALSE)
+          return(TRUE)
+        }))
+        if (length(segmentSplit) > 1) stop(paste("There should be max one segment split, got", length(segmentSplit)))
+        if (length(segmentSplit) == 0) {
+          cat("Nothing to split - probably exists already", fill=T)
+          return() # nothing to split
+        }
+        old <- segmentSplits[segmentSplit]
+        cat("Old segment",a,"-",b,"was split already so splitting",hullEdges[[old]]$vex1,"-",hullEdges[[old]]$vex2,fill=T)
+        a <- hullEdges[[old]]$vex1
+        b <- hullEdges[[old]]$vex2
+      }
       if (is.null(findHullEdge(a,mid))) {
         if (is.null(old)) stop("Splitting old edge that cannot be found")
         addHullEdge(a,mid,hullEdges[[old]]$F1,hullEdges[[old]]$F2,hullEdges[[old]]$srcVex1,hullEdges[[old]]$srcVex2)
@@ -695,12 +731,9 @@ segmentation <- function(poly)
                         if (!any(apply(poly$edgeToFaces, 1, function(edge) { 
                           return (2 == length(intersect(fp,edge))) }))) {
                         return(fp) }}))
-  if (is.null(facePairs)) {
-    # No face interactions at all - e.g. for tetrahedron
-    return (list(coords = as.matrix(t(as.data.table(hullCoords))), edges = rbindlist(hullEdges)))
-  }
-  
+
   # TODO we could (perhaps) further optimize to exclude face pairs with a too large distance to eachother
+  # TODO perhaps even if they have 1 point in common??
   
   # Find intersection lines of the face pairs - these are not segments yet but unbounded lines
   intersectionLines <- rbindlist(lapply(facePairs, function(facepair) {
@@ -715,10 +748,14 @@ segmentation <- function(poly)
 
   # for debugging restrict to one face
   if (debug) {
-    intersectionLines <- intersectionLines[F1==primaryFace | F2==primaryFace]
-    for (i in unique(unlist(intersectionLines[,c("F1","F2")]))) {
-      if (i != primaryFace) {
-        drawPolygon(poly$faces[[i]], poly$coords, alpha=0.3, col = "grey", label=fToStr(i), drawlines=T, drawvertices=T)
+    if (nrow(intersectionLines) > 0) {
+      if (!is.na(debugPrimaryFace)) {
+        intersectionLines <- intersectionLines[F1==debugPrimaryFace | F2==debugPrimaryFace]
+      }
+      for (i in unique(unlist(intersectionLines[,c("F1","F2")]))) {
+        if (is.na(debugPrimaryFace) | i != debugPrimaryFace) {
+          drawPolygon(poly$faces[[i]], poly$coords, alpha=0.3, col = "grey", label=fToStr(i), drawlines=T, drawvertices=T)
+        }
       }
     }
   }
@@ -749,6 +786,7 @@ segmentation <- function(poly)
                                    firstIsLine = T)
       if (i_seg$status == "intersect") {
         intersectionVertexIndex <- getHullCoordIdx(i_seg$I0)
+        if (debug) drawDots(i_seg$I0, label=intersectionVertexIndex, color="red", radius=0.05)
         if (is.null(intersectionSegmentP0)) {
           intersectionSegmentP0 <- intersectionVertexIndex
         } else if (is.null(intersectionSegmentP1)) {
@@ -784,14 +822,17 @@ segmentation <- function(poly)
         # }
       }
     }
-    if (is.null(intersectionSegmentP0) | is.null(intersectionSegmentP1)) {
-      stop(paste("Expected exactly 2 intersections of intersection line between",
-                 fToStr(intersectionLines[i]$F1), "and", fToStr(intersectionLines[i]$F2), 
-                 "with edges of", fToStr(intersectionLines[i]$F1)))
-    }
+    # below too strict - they can border on just a single point so only > 2 should be checked
+    # if (is.null(intersectionSegmentP0) | is.null(intersectionSegmentP1)) {
+    #   stop(paste("Expected exactly 2 intersections of intersection line between",
+    #              fToStr(intersectionLines[i]$F1), "and", fToStr(intersectionLines[i]$F2), 
+    #              "with edges of", fToStr(intersectionLines[i]$F1), 
+    #              "but got", is.null(intersectionSegmentP0) + is.null(intersectionSegmentP1)))
+    # }
   })
 
-  faceSegments <- rbindlist(hullEdges)[is.na(srcVex1) & is.na(srcVex2)]
+  # new segments
+  faceIntersectionsSegments <- rbindlist(hullEdges)[is.na(srcVex1) & is.na(srcVex2)]
   
   # show new points
   if (debug) {
@@ -803,29 +844,38 @@ segmentation <- function(poly)
     }
     # show face-face intersection segments
     print(rbindlist(hullEdges))
-    for (i in safeseq(nrow(faceSegments)))  {
-      drawSegment(spacing*hullCoords[[faceSegments[i]$vex1]], hullCoords[[faceSegments[i]$vex2]], color="red")
+    if (nrow(faceIntersectionsSegments) > 0) {
+      drawSegments(spacing*t(as.data.table(hullCoords[faceIntersectionsSegments$vex1])), 
+                   spacing*t(as.data.table(hullCoords[faceIntersectionsSegments$vex2])), color="red")
     }
   }
   
   # Intersect all those new segments amongst eachother
-  segmentPairs <- combn(nrow(faceSegments),2)
-  for (i in safeseq(ncol(segmentPairs))) {
-    seg1_start <- hullCoords[[faceSegments[segmentPairs[1,i]]$vex1]]
-    seg1_end <- hullCoords[[faceSegments[segmentPairs[1,i]]$vex2]]
-    seg2_start <- hullCoords[[faceSegments[segmentPairs[2,i]]$vex1]]
-    seg2_end <- hullCoords[[faceSegments[segmentPairs[2,i]]$vex2]]
-    
-    intersectionNewSegs <- intersect_2Segments(seg1_start, seg1_end, seg2_start, seg2_end)
-    
-    if (intersectionNewSegs$status == "intersect") {
-      if (!deltaEquals(0, distance(intersectionNewSegs$I0, seg1_start)) & !deltaEquals(0, distance(intersectionNewSegs$I0, seg1_end)) &
-          !deltaEquals(0, distance(intersectionNewSegs$I0, seg2_start)) & !deltaEquals(0, distance(intersectionNewSegs$I0, seg2_end))) 
-      {
-        print("New pt") # !! TODO: register but also SPLIT the segments and repeat??
+  if (nrow(faceIntersectionsSegments) > 0) {
+    segmentPairs <- combn(nrow(faceIntersectionsSegments),2)
+    for (i in safeseq(ncol(segmentPairs))) {
+      seg1_start <- hullCoords[[faceIntersectionsSegments[segmentPairs[1,i]]$vex1]]
+      seg1_end <- hullCoords[[faceIntersectionsSegments[segmentPairs[1,i]]$vex2]]
+      seg2_start <- hullCoords[[faceIntersectionsSegments[segmentPairs[2,i]]$vex1]]
+      seg2_end <- hullCoords[[faceIntersectionsSegments[segmentPairs[2,i]]$vex2]]
+      
+      intersectionNewSegs <- intersect_2Segments(seg1_start, seg1_end, seg2_start, seg2_end)
+      
+      if (intersectionNewSegs$status == "intersect") {
         idx <- getHullCoordIdx(intersectionNewSegs$I0)
-        drawDots(intersectionNewSegs$I0, color="purple", radius = 0.02)
-        drawTexts(spacing*intersectionNewSegs$I0, text=idx, color="purple")
+        splitsSeg1 <- !deltaEquals(0, distance(intersectionNewSegs$I0, seg1_start)) & !deltaEquals(0, distance(intersectionNewSegs$I0, seg1_end))
+        splitsSeg2 <- !deltaEquals(0, distance(intersectionNewSegs$I0, seg2_start)) & !deltaEquals(0, distance(intersectionNewSegs$I0, seg2_end))
+        if (splitsSeg1) {
+          cat("Split segment", faceIntersectionsSegments[segmentPairs[1,i]]$vex1, "-", faceIntersectionsSegments[segmentPairs[1,i]]$vex2, "at", idx, fill=T)
+        }
+        if (splitsSeg2) {
+          cat("Split segment", faceIntersectionsSegments[segmentPairs[2,i]]$vex1, "-", faceIntersectionsSegments[segmentPairs[2,i]]$vex2, "at", idx, fill=T)
+        }
+        if (splitsSeg1 & splitsSeg2) {
+          cat("New inter-segment point:",idx,fill=T)
+          drawDots(intersectionNewSegs$I0, color="purple", radius = 0.02)
+          drawTexts(spacing*intersectionNewSegs$I0, text=idx, color="purple")
+        }
       }
     }
   }
@@ -840,25 +890,23 @@ hull <- function(poly)
   poly <- compose(tetrahedron, dual(tetrahedron))
   #poly <- greatIcosahedron
   
+  segments <- segmentation(tetrahedron) # no intersections at all - returns the same poly
+  segments <- segmentation(cube)
   segments <- segmentation(greatDodecahedron)
+  segments <- segmentation(compose(tetrahedron, dual(tetrahedron)))
   
   clear3d()
-  primaryFace <- 1
-  for (i in unique(unlist(segments[F1 == primaryFace | F2 == primaryFace,1:2]))) {
-    if (i == primaryFace) {
-      drawPolygon(poly$faces[[i]], poly$coords, alpha=0.5, col = "yellow", label=fToStr(i), drawlines=T, drawvertices=T)
-    } else {
-      drawPolygon(poly$faces[[i]], poly$coords, alpha=0.3, col = "grey", label=fToStr(i), drawlines=T, drawvertices=T)
-    }
-  }
-  for (i in which(segments$F1 == primaryFace | segments$F2 == primaryFace))  {
-    # for debugging only:  
-    drawDots(c(hullCoords[[segments[i]$S0]], hullCoords[[segments[i]$S1]]), color="red", radius = 0.03)
-    drawTexts(spacing*hullCoords[[segments[i]$S0]], text=segments[i]$S0, color="red")
-    drawTexts(spacing*hullCoords[[segments[i]$S1]], text=segments[i]$S1, color="red")
-  }
-  
-  # below belongs in segmentation routine too
+  drawDots(segments$coords[rownames(segments$coords) != "",], label=which(rownames(segments$coords) != ""), color="green")
+  drawDots(segments$coords[rownames(segments$coords) == "",], label=which(rownames(segments$coords) == ""), color="red")
+  # old, original, poly segments
+  drawSegments(segments$coords[segments$edges[(srcVex1==vex1 & srcVex2==vex2)]$vex1,], 
+               segments$coords[segments$edges[(srcVex1==vex1 & srcVex2==vex2)]$vex2,], color="green")
+  # split poly segments
+  drawSegments(segments$coords[segments$edges[!is.na(srcVex1) & !is.na(srcVex2) & (srcVex1!=vex1 | srcVex2!=vex2)]$vex1,], 
+               segments$coords[segments$edges[!is.na(srcVex1) & !is.na(srcVex2) & (srcVex1!=vex1 | srcVex2!=vex2)]$vex2,], color="blue")
+  # new segments
+  drawSegments(segments$coords[segments$edges[is.na(srcVex1) | is.na(srcVex2)]$vex1,], 
+               segments$coords[segments$edges[is.na(srcVex1) | is.na(srcVex2)]$vex2,], color="red")
   
 
   

@@ -27,11 +27,19 @@ drawInit <- function(new.device = FALSE, bg = "white", width = 640, height = wid
   rgl.viewpoint(theta = 15, phi = 20, zoom = 0.7)
 }
 
-drawSegment <- function(coordsFrom, coordsTo, ...)
+drawSegments <- function(coordsFrom, coordsTo, ...)
 {
-  if (is.matrix(coordsFrom)) stop("Matrix not supported currently")
-  if (is.matrix(coordsTo)) stop("Matrix not supported currently")
-  segments3d(c(coordsFrom[1], coordsTo[1]), c(coordsFrom[2], coordsTo[2]), c(coordsFrom[3], coordsTo[3]), ...)
+  if (!is.matrix(coordsFrom) & !is.matrix(coordsTo)) {
+    segments3d(c(coordsFrom[1], coordsTo[1]), 
+               c(coordsFrom[2], coordsTo[2]), 
+               c(coordsFrom[3], coordsTo[3]), ...)
+  } else {
+    if (!is.matrix(coordsFrom)) coordsFrom <- matrix(coordsFrom, ncol=3, byrow=T)
+    if (!is.matrix(coordsTo)) coordsTo <- matrix(coordsTo, ncol=3, byrow=T)
+    coordsFrom <- data.table(coordsFrom)[,row:=seq(.N)]
+    coordsTo <- data.table(coordsTo)[,row:=seq(.N)]
+    segments3d(rbind(coordsFrom, coordsTo)[order(row)], ...)
+  }
 }
 
 drawLines <- function(coords, closed=F, ...)
@@ -41,16 +49,17 @@ drawLines <- function(coords, closed=F, ...)
   if (closed) lines3d(coords[c(nrow(coords),1),], ...)
 }
 
-drawDots <- function(coords, ...)
-{
-  if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
-  spheres3d(coords, ...)
-}
-
 drawTexts <- function(coords, text, ...)
 {
   if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
-  text3d(coords, text=text, ...)
+  texts3d(coords, text=text, ...)
+}
+
+drawDots <- function(coords, label=NULL, radius=0.01, ...)
+{
+  if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
+  spheres3d(coords, radius=radius, ...)
+  if (!is.null(label)) texts3d(1.1*coords, text=label, color="black")
 }
 
 #open3d()

@@ -331,8 +331,8 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   if (debug) {
     clear3d()
     drawAxes()
-    drawSegment(S1_P0, S1_P1, color="blue")
-    drawSegment(S2_P0, S2_P1, color="blue")
+    drawSegments(S1_P0, S1_P1, color="blue")
+    drawSegments(S2_P0, S2_P1, color="blue")
     drawTexts(c(S1_P0, S1_P1, S2_P0, S2_P1), text=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="blue")
   }
   # Helper function to check if a point P is inside a collinear segment defined by two points
@@ -396,8 +396,8 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
     print(u_2D)
     print(v_2D)
     
-    drawSegment(lookup(S1_P0_2D, dims), lookup(S1_P1_2D, dims), color="black")
-    drawSegment(lookup(S2_P0_2D, dims), lookup(S2_P1_2D, dims), color="black")
+    drawSegments(lookup(S1_P0_2D, dims), lookup(S1_P1_2D, dims), color="black")
+    drawSegments(lookup(S2_P0_2D, dims), lookup(S2_P1_2D, dims), color="black")
     drawTexts(c(lookup(S1_P0_2D, dims),lookup(S1_P1_2D, dims),lookup(S2_P0_2D, dims), lookup(S2_P1_2D, dims)),
               text=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="black")
   }
@@ -415,8 +415,8 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
     }
     
     # not sure about below when 1st is not a line
-    # delta equals?
-    if (perpproduct(u_2D,w) != 0 | perpproduct(v_2D,w) != 0)  {
+    if ((perpproduct(u_2D,w) != 0 & !deltaEquals(perpproduct(u_2D,w), 0)) | 
+        (perpproduct(v_2D,w) != 0 & !deltaEquals(perpproduct(v_2D,w), 0)))  {
       return(buildResult("disjoint", dims=dims, substatus="parallel"))
     }
     
