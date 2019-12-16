@@ -333,21 +333,20 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
     drawAxes()
     drawSegments(S1_P0, S1_P1, color="blue")
     drawSegments(S2_P0, S2_P1, color="blue")
-    drawTexts(c(S1_P0, S1_P1, S2_P0, S2_P1), text=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="blue")
+    drawDots(c(S1_P0, S1_P1, S2_P0, S2_P1), 
+              label=c("S1_P0", "S1_P1", "S2_P0", "S2_P1"), color="red", radius=0.03)
   }
   # Helper function to check if a point P is inside a collinear segment defined by two points
   # returns TRUE if P is inside segment, FALSE otherwise
   isInSegment_2D <- function(P, S_P0, S_P1)
   {
-    if (S_P0[1] != S_P1[1]) {    # S is not  vertical
-      if (deltaEquals(S_P0[1], P[1])) return (TRUE)
-      if (deltaEquals(S_P1[1], P[1])) return (TRUE)
+    if (S_P0[1] != S_P1[1] && !deltaEquals(S_P0[1], S_P1[1])) {    # S is not  vertical
+      if (deltaEquals(S_P0[1], P[1]) && deltaEquals(S_P1[1], P[1])) return (TRUE)
       if (S_P0[1] <= P[1] && P[1] <= S_P1[1]) return (TRUE)
       if (S_P0[1] >= P[1] && P[1] >= S_P1[1]) return (TRUE)
     }
     else {    # S is vertical, so test y  coordinate
-      if (deltaEquals(S_P0[2], P[2])) return (TRUE)
-      if (deltaEquals(S_P1[2], P[2])) return (TRUE)
+      if (deltaEquals(S_P0[2], P[2]) && deltaEquals(S_P1[2], P[2])) return (TRUE)
       if (S_P0[2] <= P[2] && P[2] <= S_P1[2]) return (TRUE)
       if (S_P0[2] >= P[2] && P[2] >= S_P1[2]) return (TRUE)
     }
@@ -373,15 +372,16 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   # the rest of the function works with a projection on just 2 dimensions
   # we try to choose them such that u and v are not parallel
   for (dims in list(1:2,2:3,c(1,3))) {
-    S1_P0_2D <- S1_P0[dims]
-    S1_P1_2D <- S1_P1[dims]
-    S2_P0_2D <- S2_P0[dims]
-    S2_P1_2D <- S2_P1[dims]
+    ## TODO: choice of dims shd be different if |u| or |v| = 0 (single pt)
     u_2D <- u[dims]
     v_2D <- v[dims]
     D <- perpproduct(u_2D,v_2D)
     if (!deltaEquals(0, abs(D))) break
   }
+  S1_P0_2D <- S1_P0[dims]
+  S1_P1_2D <- S1_P1[dims]
+  S2_P0_2D <- S2_P0[dims]
+  S2_P1_2D <- S2_P1[dims]
   
   lookup <- function(P, dims) {
     refx <- which(sapply(dims, identical, 1))

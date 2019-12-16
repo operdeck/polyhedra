@@ -54,9 +54,6 @@ test_that("segment intersection", {
   expect_equal(isect$I0, c(4,4,4))
   expect_equal(isect$I1, c(5,5,5))
   
-  
-  
-  
   isect <- intersect_2Segments( p[1,], p[2,], p[3,], p[4,] )
   expect_equal(isect$status, "intersect")
   expect_equal(isect$I0, c(2, 2, 2))
@@ -125,4 +122,28 @@ test_that("segment intersection", {
   isect <- intersect_2Segments(line_p0, line_p1, p2, p9, firstIsLine = T)
   expect_equal(isect$status, "intersect") # TODO this should FAIL, totally different planes
   # need to check both expressions before returning anything
+  
+  mid <- c(1.672091e-17, 5.257311e-01, 2.008114e-01)
+  a <- c(-1.672091e-17, 5.257311e-01, -2.008114e-01)
+  b <- c(0.0000000, 0.5257311, -0.8506508)
+  isect <- intersect_2Segments(mid, mid, a, b)
+  expect_equal(isect$status, "disjoint")
+  
+  p5 <- c(-0.5257311, -0.8506508, 0.0000000)
+  p14 <- c(-5.257311e-01, -2.008114e-01, -1.110223e-16)
+  p17 <- c(-5.257311e-01, 2.008114e-01, -1.110223e-16)
+  p7 <- c(-0.5257311, 0.8506508, 0.0000000)
+  isect <- intersect_2Segments(p17, p17, p5, p14)
+  expect_equal(isect$status, "intersect") # substatus incorrect "same single pt" ?!
+  isect <- intersect_2Segments(p17, p17, p14, p7)
+  expect_equal(isect$status, "disjoint")
+  drawInit(T)
+  clear3d()
+  drawAxes()
+  drawDots(p5, "p5", color="red", radius=0.02)
+  drawDots(p14, "p14", color="red", radius=0.02)
+  drawDots(p17, "p17", color="black", radius=0.02)
+  drawDots(p7, "p7", color="red", radius=0.02)
+  drawSegments(p5, p14, color="blue")
+  drawSegments(p14, p7, color="green")
 })
