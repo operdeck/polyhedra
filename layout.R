@@ -686,13 +686,16 @@ segmentation <- function(poly)
   splitHullEdge <- function(a, b, mid)
   {
     if (b != mid & a != mid) {
-      # a_mid <- findHullEdge(a,mid)
-      # b_mid <- findHullEdge(b,mid)
-      # if (!is.null(a_mid) && !is.null(b_mid)) return() # already have both
       old <- findHullEdge(a,b)
       # if old no longer exists find (possibly multiple) edges that have a/b as the source edge
       # then determine in which one "mid" is and swap that for a/b
       if (is.null(old)) {
+        if (!is.null(findHullEdge(a,mid))) {
+          if (!is.null(findHullEdge(mid,b))) {
+            cat("Segments exist already", fill=T)
+            return()
+          }  
+        }
         segmentSplits <- findHullSourceEdge(a,b)
         segmentSplit <- which(sapply(hullEdges[segmentSplits], function(e) {
           pointSegmentCheck <- 
@@ -831,6 +834,8 @@ segmentation <- function(poly)
     # }
   })
 
+  # TODO for loop here, over all unique hullEdges[is.na(srcVex1) & is.na(srcVex2)]$F1 / F2
+  
   # new segments
   faceIntersectionsSegments <- rbindlist(hullEdges)[is.na(srcVex1) & is.na(srcVex2)]
   
@@ -866,6 +871,9 @@ segmentation <- function(poly)
         splitsSeg1 <- !deltaEquals(0, distance(intersectionNewSegs$I0, seg1_start)) & !deltaEquals(0, distance(intersectionNewSegs$I0, seg1_end))
         splitsSeg2 <- !deltaEquals(0, distance(intersectionNewSegs$I0, seg2_start)) & !deltaEquals(0, distance(intersectionNewSegs$I0, seg2_end))
         if (splitsSeg1) {
+          # TODO register split
+          # identify segment as either on original poly or not (boolean)
+          # makes drawing easier too
           cat("Split segment", faceIntersectionsSegments[segmentPairs[1,i]]$vex1, "-", faceIntersectionsSegments[segmentPairs[1,i]]$vex2, "at", idx, fill=T)
         }
         if (splitsSeg2) {
@@ -891,22 +899,27 @@ hull <- function(poly)
   #poly <- greatIcosahedron
   
   segments <- segmentation(tetrahedron) # no intersections at all - returns the same poly
-  segments <- segmentation(cube)
+  segments <- segmentation(cube) # some parallel faces
+  segments <- segmentation(icosahedron) # faces connected at single point
   segments <- segmentation(greatDodecahedron)
+  segments <- segmentation(greatIcosahedron) # multiple intersections of face segments
   segments <- segmentation(compose(tetrahedron, dual(tetrahedron)))
+  segments <- segmentation(greatStellatedDodecahedron) # does not work yet - gets multiple intersections 
   
   clear3d()
-  drawDots(segments$coords[rownames(segments$coords) != "",], label=which(rownames(segments$coords) != ""), color="green")
-  drawDots(segments$coords[rownames(segments$coords) == "",], label=which(rownames(segments$coords) == ""), color="red")
-  # old, original, poly segments
-  drawSegments(segments$coords[segments$edges[(srcVex1==vex1 & srcVex2==vex2)]$vex1,], 
-               segments$coords[segments$edges[(srcVex1==vex1 & srcVex2==vex2)]$vex2,], color="green")
-  # split poly segments
-  drawSegments(segments$coords[segments$edges[!is.na(srcVex1) & !is.na(srcVex2) & (srcVex1!=vex1 | srcVex2!=vex2)]$vex1,], 
-               segments$coords[segments$edges[!is.na(srcVex1) & !is.na(srcVex2) & (srcVex1!=vex1 | srcVex2!=vex2)]$vex2,], color="blue")
-  # new segments
-  drawSegments(segments$coords[segments$edges[is.na(srcVex1) | is.na(srcVex2)]$vex1,], 
-               segments$coords[segments$edges[is.na(srcVex1) | is.na(srcVex2)]$vex2,], color="red")
+  edgesOriginal <- segments$edges[(srcVex1==vex1 & srcVex2==vex2)] # TODO changes when registring new vertices
+  verticesOriginal <- which(rownames(segments$coords) != "")
+  edgesOnOriginalEdges <- segments$edges[ !is.na(srcVex1) & !is.na(srcVex2) ] # TODO changes when registring new vertices
+  verticesOnOriginalEdges <- setdiff(unique(c(edgesOnOriginalEdges$vex1, edgesOnOriginalEdges$vex2)), verticesOriginal)
+  edgesFromFaceIntersections <- segments$edges[(is.na(srcVex1) | is.na(srcVex2))]
+  verticesFromFaceIntersections <- setdiff(seq(length(hullCoords)), c(verticesOriginal, verticesOnOriginalEdges))
+  
+  drawDots(segments$coords[verticesOriginal,], label=verticesOriginal, color="green")
+  drawDots(segments$coords[verticesOnOriginalEdges,], label=verticesOnOriginalEdges, color="blue")
+  drawDots(segments$coords[verticesFromFaceIntersections,], label=verticesFromFaceIntersections, color="purple")
+  drawSegments(segments$coords[edgesOriginal$vex1,], segments$coords[edgesOriginal$vex2,], color="green")
+  drawSegments(segments$coords[edgesOnOriginalEdges$vex1,], segments$coords[edgesOnOriginalEdges$vex2,], color="blue")
+  drawSegments(segments$coords[edgesFromFaceIntersections$vex1,], segments$coords[edgesFromFaceIntersections$vex2,], color="purple")
   
 
   
