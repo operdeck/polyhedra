@@ -371,12 +371,20 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   
   # the rest of the function works with a projection on just 2 dimensions
   # we try to choose them such that u and v are not parallel
-  for (dims in list(1:2,2:3,c(1,3))) {
-    ## TODO: choice of dims shd be different if |u| or |v| = 0 (single pt)
+  alldims <- list(1:2,2:3,c(1,3))
+  for (dims in alldims) {
     u_2D <- u[dims]
     v_2D <- v[dims]
     D <- perpproduct(u_2D,v_2D)
     if (!deltaEquals(0, abs(D))) break
+  }
+  if (deltaEquals(0, abs(D)) & deltaEquals(0, vectorlength(u_2D)) & deltaEquals(0, vectorlength(v_2D))) { 
+    # Still 0 when vectors are 0 length? Then find dim so that we get non-zero length vectors
+    for (dims in alldims) {
+      u_2D <- u[dims]
+      v_2D <- v[dims]
+      if (!deltaEquals(0, vectorlength(u_2D)+vectorlength(v_2D))) break
+    }
   }
   S1_P0_2D <- S1_P0[dims]
   S1_P1_2D <- S1_P1[dims]
