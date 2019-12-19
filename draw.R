@@ -88,13 +88,6 @@ drawConvexPolygon <- function(coords, ...)
 }
 
 # Draws a star polygon with intersecting edges
-
-# NB perhaps could be a lot simpler by getting the vertices in actual order, finding
-# the intersections of the edges of neighbouring vertices, then defining a new face 
-# with 2*N vertices. Perhaps polygon3d can then even draw that directly. Also perhaps
-# this function should just be a "decompose", returning a list of simple faces that can
-# be passed on to actual drawing functions.
-
 drawStarPolygon <- function(coords, ...)
 {
   #drawTexts(coords,text=seq(nrow(coords)))
@@ -128,13 +121,24 @@ drawStarPolygon <- function(coords, ...)
     })
     l <- which.min(alphas)
     #drawDots(intersectionPts[l, 7:9], radius=0.03, color="purple")
-    triangles3d(matrix(c(center, intersectionPts[l, 7:9], coords[currentSegStart, ]), ncol = 3, byrow=T), ...)
+    triangle1 <- matrix(c(coords[currentSegStart, ], center, intersectionPts[l, 7:9]), ncol = 3, byrow=T)
+    # print(triangle1)
+    # print(class(triangle1))
+    # if (!isNormalOutwardFacing(triangle1)) {
+    #   triangle1 <- triangle1[c(3,2,1),]  
+    # }
+    triangles3d(triangle1, ...)
     if (intersectionPts[l]$seg1a==currentSegStart | intersectionPts[l]$seg1b==currentSegStart) {
       pNext <- ifelse(intersectionPts[l]$f2 < 0.5, intersectionPts[l]$seg2a, intersectionPts[l]$seg2b)   
     } else {
       pNext <- ifelse(intersectionPts[l]$f1 < 0.5, intersectionPts[l]$seg1a, intersectionPts[l]$seg1b)   
     }
-    triangles3d(matrix(c(center, intersectionPts[l, 7:9], coords[pNext, ]), ncol = 3, byrow=T), ...)
+    triangle2 <- matrix(c(center, intersectionPts[l, 7:9], coords[pNext, ]), ncol = 3, byrow=T)
+    # if (!isNormalOutwardFacing(triangle2)) {
+    #   triangle2 <- triangle1[c(3,2,1),]  
+    # }
+    triangles3d(triangle2, ...)
+    
     cnt <- cnt+1
     if (cnt > nrow(coords)) break;
     if (pNext == 1) break
@@ -187,14 +191,14 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
 }
 
 # returns an array of colors that can be indexed by face number
-assignColors <- function(p)
+assignColors <- function(p, colorCreator = rainbow)
 {
   if (length(p$bodies) > 1) {
-    bodyColors <- rainbow(length(p$bodies))
+    bodyColors <- colorCreator(length(p$bodies))
   }
   faceType <- as.integer(factor(sapply(p$faces, length))) # faces considered same just by nr of edges (TODO!!)
   if (max(faceType) > 1) {
-    faceTypeColors <- rainbow(max(faceType))  
+    faceTypeColors <- colorCreator(max(faceType))  
   }
 
   colors <- sapply(seq(length(p$faces)), function(f) {
@@ -207,7 +211,7 @@ assignColors <- function(p)
         faceColor <- faceTypeColors[faceType[f]]
       } else {
         # one body, one face type - rainbow
-        faceColor <- rainbow(length(p$faces))[f]
+        faceColor <- colorCreator(length(p$faces))[f]
       }
     }
     return(faceColor)
@@ -217,7 +221,7 @@ assignColors <- function(p)
 }
 
 # Draw a single polygon. Offset is optional.
-drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p$name), debug=F)
+drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p$name), debug=F, colorCreator = rainbow)
 {
   if (debug) {
     drawAxes()
@@ -250,20 +254,20 @@ drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p
     drawTexts( c(offset[1], offset[2] + min(p$coords[,2]) - 1, offset[3]), text = label, color = "black", cex=0.7, pos = 1)
   }
   if (length(p$faces) > 0) { 
-    colors <- assignColors(p)
+    colors <- assignColors(p, colorCreator)
     for (f in seq(length(p$faces))) {
       drawPolygon(p$faces[[f]], p$coords, colors[f], alpha, offset, label=ifelse(debug,fToStr(f),""), drawlines=debug) 
     }
   }
 }
 
-drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debug=F)
+drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debug=F, colorCreator = rainbow)
 {
   if (!is.null(names(p))) { # not testing whether there is a name, testing whether this is a list with poly's or not
-    drawSinglePoly(p, offset=start, ifelse(is.null(p$name), "", p$name), debug)
+    drawSinglePoly(p, offset=start, ifelse(is.null(p$name), "", p$name), debug, colorCreator)
   } else {
     for (i in seq(length(p))) {
-      drawSinglePoly(p[[i]], offset=start+(i-1)*delta, p[[i]]$name, debug)  
+      drawSinglePoly(p[[i]], offset=start+(i-1)*delta, p[[i]]$name, debug, colorCreator)  
     }
     # overall label
     rgl.texts(start[1], start[2] + 2, start[3], text = label, color="blue", pos = 4, cex = 1)

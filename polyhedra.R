@@ -6,16 +6,6 @@ source("geometry.R")
 source("draw.R")
 source("topology.R")
 
-# Returns T if outward facing (= rotating anti-clockwise when looking down towards face in direction of origin)
-isNormalOutwardFacing <- function(coords, f)
-{
-  if (length(f) < 3) return(T) # we dont know
-  
-  n <- normal( coords[f[1],], coords[f[2],], coords[f[3],] )
-  mid <- apply(coords[f,],2,mean)
-  return (vectorlength(mid+n) > vectorlength(mid-n))
-}
-
 # Build up a face from existing coords in given polygon, within constraints passed in as
 # the number of edges/vertices of this face, number of faces per vertex and the length of
 # an edge. The face does not need to be regular but will have all edges of the same length.
@@ -53,7 +43,7 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
     if (debug) cat("Face complete", fill=T)
     
     # We're done, but just make sure to have the normal face outward
-    if (!isNormalOutwardFacing(p$coords, aFace)) {
+    if (!isNormalOutwardFacing(p$coords[aFace[1:3], ])) {
       if (debug) cat("Flip new face to make normal outward facing", fill=T)
       aFace <- rev(aFace)
     }
@@ -108,7 +98,7 @@ setPoly <- function(coords, faces, name, debug=F)
   # make sure all faces are oriented consistently
   for (i in seq(length(faces))) {
     if (!is.null(faces[[i]])) {
-      if (!isNormalOutwardFacing(coords, faces[[i]])) {
+      if (!isNormalOutwardFacing(coords[faces[[i]][1:3], ])) {
         if (debug) cat("Flip face", i, "to make normal outward facing", fill=T)
         faces[[i]] <- rev(faces[[i]])
       }
@@ -627,4 +617,25 @@ testRhombic <- function()
   drawAxes()
   r <- rhombic(p, debug=F)
   drawPoly(r)
+}
+
+kerst2019 <- function()
+{
+  drawInit(new.device = T)
+  
+  xmasCols <- function(n, alpha=1)
+  {
+    return(sample(c("darkgreen","red","gold"), n, replace=T))
+  }
+  rgl.bg(back = "filled", color="black")
+  clear3d()
+  set.seed(1)
+  sizeOfUniverse <- 20
+  nStarsInUniverse <- 53
+  drawTexts(c(0,sizeOfUniverse,0), "Een goed 2020!", color="white")
+  for (i in seq(nStarsInUniverse)) {
+    drawSinglePoly(greatStellatedDodecahedron, offset = runif(3,-sizeOfUniverse,sizeOfUniverse), colorCreator = xmasCols, label = "")
+  }
+  rgl.viewpoint(zoom=0.2)
+  snapshot3d("kerst2019.png", fmt = "png", top = TRUE )
 }

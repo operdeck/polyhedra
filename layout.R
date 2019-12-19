@@ -610,13 +610,21 @@ testLayout <- function()
 
 #testLayout()
 
-# TODO change to segmentation returning list of coords and segments
-# global hullCoords/Edges are returns of this segmentation function
+getHullCoordIdx <- function(p)
+{
+  for (i in safeseq(length(hullCoords))) {
+    if (deltaEquals(0, distance(p, hullCoords[[i]]))) {
+      return(i)
+    }
+  } 
+  hullCoords[[1+length(hullCoords)]] <<- p
+  return(length(hullCoords))
+}
 
 #' Get intersection lines of all faces of a polygon.
 #'
 #' @param poly 
-segmentation <- function(poly, debug=F)
+segmentation <- function(poly, debug=F, debugPrimaryFace=NA)
 {
   # Start with current polygon 
   # hullCoords is a list of unique coordinates of the hull
@@ -628,35 +636,30 @@ segmentation <- function(poly, debug=F)
   
   spacing <- 1.1
   #debug<-T
-  debugPrimaryFace<-NA
-
+  
+  
+  #for (debugPrimaryFace in seq(length(poly$faces))) {
+  #print(debugPrimaryFace)
   hullCoords <<- as.list(as.data.table(t(poly$coords))) 
-  vexCells <- which(upper.tri(poly$coordPairToEdge) & (poly$coordPairToEdge != 0))
-  hullEdges <<- lapply(vexCells, function(edge) {
+  
+  originalEdges <- rbindlist(lapply(which(upper.tri(poly$coordPairToEdge) & (poly$coordPairToEdge != 0)), function(edge) {
     dim <- nrow(poly$coordPairToEdge)
     col <- (edge-1)%%dim+1
     row <- (edge-1)%/%dim+1
-    return (data.table(vex1=row, vex2=col, srcVex1=row, srcVex2=col, 
-                       F1=poly$coordPairToFaces[row,col], F2=poly$coordPairToFaces[col,row],
-                       onOriginal=T))
-  })
-  
-  ## TODO replace hullCoords & hullEdges with a data.table that we manually double
-  ## in size when needed only to truncate at the end. We can index by
-  ## vex1/vex2 even (setindex or setkey) then lookup really quickly.
-  ## should be a LOT faster.
+    return (data.table(vex1=row, vex2=col, F1=poly$coordPairToFaces[row,col], F2=poly$coordPairToFaces[col,row]))
+  }))
   
   if (debug) {
     clear3d()
     if (!is.na(debugPrimaryFace)) {
-      hullEdges <- hullEdges[sapply(hullEdges, function(e) { return(e$F1 == debugPrimaryFace || e$F2 == debugPrimaryFace)})]
+      originalEdges <- originalEdges[F1 == debugPrimaryFace | F2 == debugPrimaryFace]
       drawPolygon(poly$faces[[debugPrimaryFace]], poly$coords, alpha=0.5, col = "yellow", label=fToStr(debugPrimaryFace), drawlines=T, drawvertices=T)
     }
   }
-
+  
   getHullCoordIdx <- function(p)
   {
-    for (i in safeseq(length(hullCoords))) {
+    for (i in seq_len(length(hullCoords))) {
       if (deltaEquals(0, distance(p, hullCoords[[i]]))) {
         return(i)
       }
@@ -664,248 +667,155 @@ segmentation <- function(poly, debug=F)
     hullCoords[[1+length(hullCoords)]] <<- p
     return(length(hullCoords))
   }
-
-  findHullEdge <- function(a, b)
-  {
-    ## TODO this will be MUCH faster when indexed on vex1/vex2
-    ## as flights[.("JFK", "MIA")]
-    ## see https://cran.r-project.org/web/packages/data.table/vignettes/datatable-keys-fast-subset.html
-    idx <- which(sapply(hullEdges, function(edge) {
-      return( (edge$vex1==a && edge$vex2==b) || (edge$vex1==b && edge$vex2==a))
-    }))   
-    if (length(idx) == 0) return(NULL)
-    return(idx)
-  }
-
-  findHullSourceEdge <- function(a, b)
-  {
-    idx <- which(sapply(hullEdges, function(edge) {
-      return( (edge$srcVex1==a && edge$srcVex2==b) || (edge$srcVex1==b && edge$srcVex2==a))
-    }))   
-    if (length(idx) == 0) return(NULL)
-    return(idx)
-  }
-  
-  addHullEdge <- function(a, b, F1, F2=F1, srca=a, srcb=b, onOriginalPoly=FALSE, debug=F)
-  {
-    if (is.null(findHullEdge(a,b))) {
-      hullEdges[[1+length(hullEdges)]] <<- 
-        data.table(vex1=a, vex2=b, srcVex1=srca, srcVex2=srcb, F1=F1, F2=F2, onOriginal=onOriginalPoly)
-    } else {
-      if (debug) cat("Segment",a,"-",b,"already exists so skipping adding",fill=T)
-    }
-  }
-  
-  splitHullEdge <- function(a, b, mid, debug=F)
-  {
-    if (debug) cat("Split edge:", a, "- (", mid, ") -", b, fill=T)
-    
-    if (b != mid & a != mid) {
-      old <- findHullEdge(a,b)
-      # if old no longer exists find (possibly multiple) edges that have a/b as the source edge
-      # then determine in which one "mid" is and swap that for a/b
-      if (is.null(old)) {
-        if (!is.null(findHullEdge(a,mid))) {
-          if (!is.null(findHullEdge(mid,b))) {
-            if (debug) cat("Segments", a, "-", mid, "and", mid, "-", b, "exist already", fill=T)
-            return()
-          }  
-        }
-        segmentSplits <- findHullSourceEdge(a,b)
-        #print(segmentSplits)
-        segmentSplit <- which(sapply(hullEdges[segmentSplits], function(e) {
-          pointSegmentCheck <- 
-            intersect_2Segments(hullCoords[[mid]], hullCoords[[mid]], 
-                                hullCoords[[e$vex1]], hullCoords[[e$vex2]])
-          if (pointSegmentCheck$status != "intersect") return(FALSE)
-          if (deltaEquals(distance(pointSegmentCheck$I0, hullCoords[[e$vex1]]), 0)) return(FALSE)
-          if (deltaEquals(distance(pointSegmentCheck$I0, hullCoords[[e$vex2]]), 0)) return(FALSE)
-          return(TRUE)
-        }))
-        if (length(segmentSplit) > 1) {
-          print(hullEdges[segmentSplits])
-          print(segmentSplit)
-          stop(paste("There should be max one segment split, got", length(segmentSplit)))
-        }
-        if (length(segmentSplit) == 0) {
-          if (debug) cat("Nothing to split - splits probably exists already", fill=T)
-          return() # nothing to split
-        }
-        old <- segmentSplits[segmentSplit]
-        if (debug) cat("Old segment",a,"-",b,"was split already so splitting",
-            hullEdges[[old]]$vex1,"-",hullEdges[[old]]$vex2, "at", mid, fill=T)
-        a <- hullEdges[[old]]$vex1
-        b <- hullEdges[[old]]$vex2
-      }
-      if (!is.null(old)) {
-        addHullEdge(a,mid,hullEdges[[old]]$F1,hullEdges[[old]]$F2,hullEdges[[old]]$srcVex1,hullEdges[[old]]$srcVex2,hullEdges[[old]]$onOriginal, debug=debug)
-        addHullEdge(mid,b,hullEdges[[old]]$F1,hullEdges[[old]]$F2,hullEdges[[old]]$srcVex1,hullEdges[[old]]$srcVex2,hullEdges[[old]]$onOriginal, debug=debug)
-        hullEdges[[old]] <<- NULL
-      }
-    }
-  }
   
   # All face intersections, exclude face pairs that are connected anyway (poly$edgeToFaces)
   facePairs <- Filter(Negate(is.null), 
                       apply(combn(length(poly$faces),2), 2, function(fp) { 
-                        if (!any(apply(poly$edgeToFaces, 1, function(edge) { 
-                          return (2 == length(intersect(fp,edge))) }))) {
-                        return(fp) }}))
-
+                        if (!any(apply(poly$edgeToFaces, 1, function(edge) { return (2 == length(intersect(fp,edge))) }))) {
+                          return(fp) }}))
+  
   # TODO we could (perhaps) further optimize to exclude face pairs with a too large distance to eachother
-  # TODO perhaps even if they have 1 point in common??
+  # TODO perhaps exclude even if they have 1 point in common??
   
   # Find intersection lines of the face pairs - these are not segments yet but unbounded lines
-  intersectionLines <- rbindlist(lapply(facePairs, function(facepair) {
+  faceFaceIntersectionLines <- rbindlist(lapply(facePairs, function(facepair) {
     i <- intersect3D_2Planes(planeToNormalForm(poly$faces[[facepair[1]]], poly$coords), 
                              planeToNormalForm(poly$faces[[facepair[2]]], poly$coords))
     if (i$status == "intersect") {
-        return(data.table(F1=facepair[1], F2=facepair[2], 
+      return(data.table(F1=facepair[1], F2=facepair[2], 
                         P0_x=i$P0[1], P0_y=i$P0[2], P0_z=i$P0[3], 
                         P1_x=i$P1[1], P1_y=i$P1[2], P1_z=i$P1[3]))
     }
   }))
-
+  
   # for debugging restrict to one face
-  if (debug) {
-    if (nrow(intersectionLines) > 0) {
-      if (!is.na(debugPrimaryFace)) {
-        intersectionLines <- intersectionLines[F1==debugPrimaryFace | F2==debugPrimaryFace]
-      }
-      for (i in unique(unlist(intersectionLines[,c("F1","F2")]))) {
-        if (is.na(debugPrimaryFace) | i != debugPrimaryFace) {
-          drawPolygon(poly$faces[[i]], poly$coords, alpha=0.3, col = "grey", label=fToStr(i), drawlines=T, drawvertices=T)
-        }
-      }
+  if (debug & nrow(faceFaceIntersectionLines) > 0) {
+    if (!is.na(debugPrimaryFace)) {
+      faceFaceIntersectionLines <- faceFaceIntersectionLines[F1==debugPrimaryFace | F2==debugPrimaryFace]
     }
-  }
-  
-  # Turn lines into segments by truncating to the edges of the face
-  # TODO: for now assuming either face returns the same result. This is not true for complex cases
-  # so we should do both then intersect (overlap) the resulting segments.
-  ## TODO potentially we could pre-allocate a matrix for all combinations
-  ## to put the coordinates in
-  dummy <- lapply(safeseq(nrow(intersectionLines)), function(i) {
-    # intersection i is between F1 and F2, now truncate the lines to the boundaries of F1 and F2
-    # TODO should probably take intersect of the two intersections... not assuming they stretch to the edges...
-    for (f in c(intersectionLines[i]$F1, intersectionLines[i]$F2)) {
-      faceVertices <- poly$faces[[f]]
-      faceCoords <- poly$coords[faceVertices, ]
-      skipNext <- F
-      skipLast <- F
-      # NB we're assuming the intersection yields exactly 0 or 2 points. In general this may not be true.
-      intersectionSegmentP0 <- NULL
-      intersectionSegmentP1 <- NULL
-      for (j in seq(nrow(faceCoords))) {
-        if (skipLast && j==nrow(faceCoords)) break;
-        if (skipNext) { 
-          skipNext <- F
-          next
-        }
-        i_seg <- intersect_2Segments(c(intersectionLines[i]$P0_x, intersectionLines[i]$P0_y, intersectionLines[i]$P0_z), 
-                                     c(intersectionLines[i]$P1_x, intersectionLines[i]$P1_y, intersectionLines[i]$P1_z), 
-                                     faceCoords[j,], 
-                                     faceCoords[(j%%nrow(faceCoords))+1,], 
-                                     firstIsLine = T)
-        if (i_seg$status == "intersect") {
-          ## TODO we will encounter this same intersect with an edge multiple
-          ## times - can this be avoided? Edge i-j intersect with face line F-G
-          intersectionVertexIndex <- getHullCoordIdx(i_seg$I0)
-          if (debug) drawDots(i_seg$I0, label=intersectionVertexIndex, color="red", radius=0.05)
-          if (is.null(intersectionSegmentP0)) {
-            intersectionSegmentP0 <- intersectionVertexIndex
-          } else if (is.null(intersectionSegmentP1)) {
-            intersectionSegmentP1 <- intersectionVertexIndex
-            if (debug) cat("Add edge:", intersectionSegmentP0, "-", intersectionSegmentP1, 
-                           "(", fToStr(intersectionLines[i]$F1), "|", fToStr(intersectionLines[i]$F2), ")", fill=T)
-            addHullEdge(intersectionSegmentP0, intersectionSegmentP1,
-                        intersectionLines[i]$F1, intersectionLines[i]$F2,
-                        onOriginalPoly=FALSE, debug=debug)
-          } else {
-            stop(paste("Expected no more than 2 intersections of intersection line between",
-                       fToStr(intersectionLines[i]$F1), "and", fToStr(intersectionLines[i]$F2), 
-                       "with edges of", fToStr(intersectionLines[i]$F1), 
-                       "but got additional intersection at", intersectionVertexIndex))
-          }
-          
-          # intersection = segment end, then skip next round as this would start with the same point
-          if (deltaEquals(0, distance(i_seg$I0, faceCoords[(j%%nrow(faceCoords))+1,]))) {
-            skipNext <- T  
-          } else {
-            if (deltaEquals(0, distance(i_seg$I0, faceCoords[j,]))) {
-              # intersection = segment start, then skip last round as this would start with the same point
-              if (j == 1) skipLast <- T
-            } else {
-              # somewhere in the segment
-              splitHullEdge(faceVertices[j], faceVertices[(j%%nrow(faceCoords))+1], intersectionVertexIndex, debug=debug)
-            }
-          }
-          # TODO: for efficiency we could do below check however not having this check 
-          # helps validate the assumption that there are no more than 2 intersection points
-          # if (!is.null(intersectionSegmentP0) & !is.null(intersectionSegmentP1)) {
-          #   break # both intersections found - assuming there are only 2! maybe we should not and assert?!
-          # }
-        }
-      }
-      # they can border on just a single point so only > 2 should be checked
-    }
-  })
-
-  # Get intersections of the new segments, face by face
-  allFaceIntersectionsSegments <- rbindlist(hullEdges)[(!onOriginal)]
-  for (currentFace in unique(allFaceIntersectionsSegments$F1)) { ## TODO not F2 too??
-    if (debug) cat("Intersections of face segments for face", currentFace, fill=T)
-    faceIntersectionsSegments <- allFaceIntersectionsSegments[F1 == currentFace | F2 == currentFace]
-  
-    # show new points
-    if (debug) {
-      if (length(hullCoords) > nrow(poly$coords)) {
-        for (i in (nrow(poly$coords)+1):length(hullCoords)) {
-          drawDots(hullCoords[[i]], color="red", radius = 0.03)
-          drawTexts(spacing*hullCoords[[i]], text=i, color="red")
-        }
-      }
-      # show face-face intersection segments
-      # print(rbindlist(hullEdges))
-      if (nrow(faceIntersectionsSegments) > 0) {
-        drawSegments(spacing*t(as.data.table(hullCoords[faceIntersectionsSegments$vex1])), 
-                     spacing*t(as.data.table(hullCoords[faceIntersectionsSegments$vex2])), color="red")
+    for (i in unique(unlist(faceFaceIntersectionLines[,c("F1","F2")]))) {
+      if (is.na(debugPrimaryFace) | i != debugPrimaryFace) {
+        drawPolygon(poly$faces[[i]], poly$coords, alpha=0.3, col = "grey", label=fToStr(i), drawlines=T, drawvertices=T)
       }
     }
     
-    # Intersect all those new segments amongst eachother
-    if (nrow(faceIntersectionsSegments) > 0) {
-      segmentPairs <- combn(nrow(faceIntersectionsSegments),2)
-      for (i in safeseq(ncol(segmentPairs))) {
-        seg1_start <- hullCoords[[faceIntersectionsSegments[segmentPairs[1,i]]$vex1]]
-        seg1_end <- hullCoords[[faceIntersectionsSegments[segmentPairs[1,i]]$vex2]]
-        seg2_start <- hullCoords[[faceIntersectionsSegments[segmentPairs[2,i]]$vex1]]
-        seg2_end <- hullCoords[[faceIntersectionsSegments[segmentPairs[2,i]]$vex2]]
+  }
+  
+  # Turn face-face intersection lines into segments by truncating to the edges of the faces
+  # TODO for complex ones need to truncate to BOTH faces
+  edgeSplits <- matrix(data = 0, nrow = nrow(originalEdges), ncol = nrow(faceFaceIntersectionLines))
+  for (i in seq_len(nrow(originalEdges))) {
+    for (j in seq_len(nrow(faceFaceIntersectionLines))) {
+      if (faceFaceIntersectionLines[j]$F1 == originalEdges[i]$F1 | faceFaceIntersectionLines[j]$F2 == originalEdges[i]$F2 |
+          faceFaceIntersectionLines[j]$F1 == originalEdges[i]$F2 | faceFaceIntersectionLines[j]$F2 == originalEdges[i]$F1) {
+        intersection <- intersect_2Segments(c(faceFaceIntersectionLines[j]$P0_x, 
+                                              faceFaceIntersectionLines[j]$P0_y, 
+                                              faceFaceIntersectionLines[j]$P0_z),
+                                            c(faceFaceIntersectionLines[j]$P1_x, 
+                                              faceFaceIntersectionLines[j]$P1_y, 
+                                              faceFaceIntersectionLines[j]$P1_z),
+                                            hullCoords[[originalEdges[i]$vex1]],
+                                            hullCoords[[originalEdges[i]$vex2]],
+                                            firstIsLine = T)
+        if (intersection$status == "intersect") {
+          # TODO instead of checking here perhaps could be a substatus of the intersection call
+          if (deltaEquals(0, distance( hullCoords[[originalEdges[i]$vex1]],  intersection$I0))) {
+            intersectionVertexIndex <- originalEdges[i]$vex1
+          } else if (deltaEquals(0, distance( hullCoords[[originalEdges[i]$vex2]],  intersection$I0))) {
+            intersectionVertexIndex <- originalEdges[i]$vex2
+          } else {
+            # TODO can also speed up by checking only for existing coordinates on row/col of the matrix
+            # because I think they can only be on those lines - if not just add coord w/o searching first
+            intersectionVertexIndex <- getHullCoordIdx(intersection$I0) ## TODO this is very slow
+            if (debug) drawDots(intersection$I0, label=intersectionVertexIndex, color="red", radius=0.05)
+          }
+          edgeSplits[i,j] <- intersectionVertexIndex
+        }
+      }      
+    }
+  }
+  
+  # Order splits of segment start-end by distance, returns list of all the segments (at least 1, possibly more)
+  orderSplits <- function(start, end, intermediates)
+  {
+    rest <- setdiff(unique(c(end, Filter(function(x) {(x!=0)}, intermediates))), start)
+    distances <- distance(hullCoords[[start]], matrix(unlist(hullCoords[rest]),ncol = 3,byrow = T))
+    orderedpts <- c(start,rest[order(distances)])
+    return(rbindlist(lapply(seq_len(length(rest)), function(i) {return(data.table(vex1=orderedpts[i], vex2=orderedpts[i+1]))})))
+  }
+  
+  # Build final list of split segments on the edges of the original polyhedron
+  onEdgeSegments <- rbindlist(lapply(seq_len(nrow(edgeSplits)), function(i) {
+    splitSegs <- orderSplits(originalEdges[i]$vex1, originalEdges[i]$vex2, edgeSplits[i,])
+    splitSegs$F1 <- originalEdges[i]$F1
+    splitSegs$F2 <- originalEdges[i]$F2
+    return(splitSegs)}))
+  
+  # Define the end points of the face-face intersection lines using the same 
+  # polygon - line intersection matrix. This results in a structure faceFaceIntersections
+  # that lists the segments ends for each pair of faces that have an intersection line.
+  faceFaceSegments <- lapply(as.data.table(edgeSplits), 
+                             function(col) {return( unique(col[which(col!=0)]) )})
+  if (nrow(faceFaceIntersectionLines) != length(faceFaceSegments)) stop("Something very wrong")
+  faceFaceIntersections <- rbindlist(lapply(seq_len(length(faceFaceSegments)), function(i) {
+    if (length(faceFaceSegments[[i]]) != 2) {
+      print(faceFaceIntersectionLines[i])
+      print(faceFaceSegments[[i]])
+      stop("Expected exactly 2 intersections of segment with polygon")
+    }
+    # TODO could perhaps be 0 too
+    return(list(F1=faceFaceIntersectionLines[i]$F1, F2=faceFaceIntersectionLines[i]$F2,
+                vex1=faceFaceSegments[[i]][1], vex2=faceFaceSegments[[i]][2]))
+  }))
+  
+  # Now intersect all those face-face intersection segments of one face with eachother
+  onFaceIntersections <- matrix(data = 0, nrow = nrow(faceFaceIntersections), ncol = nrow(faceFaceIntersections))
+  for (i in seq_len(max(0,nrow(faceFaceIntersections) - 1))) {
+    for (j in (i+1):(nrow(faceFaceIntersections))) {
+      # they need to share a face
+      if ( faceFaceIntersections[i]$F1 == faceFaceIntersections[j]$F1 |
+           faceFaceIntersections[i]$F1 == faceFaceIntersections[j]$F2 |
+           faceFaceIntersections[i]$F2 == faceFaceIntersections[j]$F1 |
+           faceFaceIntersections[i]$F2 == faceFaceIntersections[j]$F2 ) {
+        # if the segments already share a begin/end point skip
+        seg1_start <- faceFaceIntersections[i]$vex1
+        seg2_start <- faceFaceIntersections[j]$vex1
+        if (seg1_start == seg2_start) next
+        seg2_end <- faceFaceIntersections[j]$vex2
+        if (seg1_start == seg2_end) next
+        seg1_end <- faceFaceIntersections[i]$vex2
+        if (seg1_end == seg2_start) next
+        if (seg1_end == seg2_end) next
         
-        intersectionNewSegs <- intersect_2Segments(seg1_start, seg1_end, seg2_start, seg2_end)
+        # cat("Intersection of", seg1_start, "-", seg1_end, "with", seg2_start, "-", seg2_end, fill=T) 
+        
+        intersectionNewSegs <- intersect_2Segments(hullCoords[[seg1_start]], hullCoords[[seg1_end]], hullCoords[[seg2_start]], hullCoords[[seg2_end]])
         
         if (intersectionNewSegs$status == "intersect") {
+          # TODO can also speed up by checking only for existing coordinates on row/col of the matrix
+          # because I think they can only be on those lines - if not just add coord w/o searching first
           idx <- getHullCoordIdx(intersectionNewSegs$I0)
-          splitsSeg1 <- !deltaEquals(0, distance(intersectionNewSegs$I0, seg1_start)) & !deltaEquals(0, distance(intersectionNewSegs$I0, seg1_end))
-          splitsSeg2 <- !deltaEquals(0, distance(intersectionNewSegs$I0, seg2_start)) & !deltaEquals(0, distance(intersectionNewSegs$I0, seg2_end))
-          if (splitsSeg1 & splitsSeg2) {
-            if (debug) cat("New inter-segment point:",idx,fill=T)
-            drawDots(intersectionNewSegs$I0, label = idx, color="purple", radius = 0.02)
-          }
-          if (splitsSeg1) {
-            splitHullEdge(faceIntersectionsSegments[segmentPairs[1,i]]$vex1, 
-                          faceIntersectionsSegments[segmentPairs[1,i]]$vex2, idx, debug=debug)
-          }
-          if (splitsSeg2) {
-            splitHullEdge(faceIntersectionsSegments[segmentPairs[2,i]]$vex1, 
-                          faceIntersectionsSegments[segmentPairs[2,i]]$vex2, idx, debug=debug)
-          }
+          onFaceIntersections[i,j] <- idx
+          onFaceIntersections[j,i] <- idx
+          if (debug) drawDots(intersectionNewSegs$I0, label=idx, color="purple", radius=0.03)
         }
       }
     }
   }
   
-  return (list(coords = as.matrix(t(as.data.table(hullCoords))), edges = rbindlist(hullEdges)))
+  # Build list of all segments of the intersections of the lines on the faces of the original polygon
+  onFaceSegments <- rbindlist(lapply(seq_len(nrow(onFaceIntersections)), function(i) {
+    splitSegs <- orderSplits(faceFaceIntersections[i]$vex1, faceFaceIntersections[i]$vex2, onFaceIntersections[i,])
+    splitSegs$F1 <- faceFaceIntersections[i]$F1
+    splitSegs$F2 <- faceFaceIntersections[i]$F2
+    return(splitSegs)}))
+  
+  if (nrow(onFaceSegments) == 0) {
+    return (list(coords = as.matrix(t(as.data.table(hullCoords))), 
+                 edges = copy(onEdgeSegments[, onEdge:=T])))
+  }
+  return (list(coords = as.matrix(t(as.data.table(hullCoords))), 
+               edges = rbind(onEdgeSegments[, onEdge:=T], onFaceSegments[, onEdge:=F])))
 }
 
 # Find segment end points for the intersection of a line with one polygon
@@ -921,44 +831,50 @@ hull <- function(poly)
   segments <- segmentation(tetrahedron) # no intersections at all - returns the same poly
   segments <- segmentation(cube) # some parallel faces
   segments <- segmentation(icosahedron) # faces connected at single point
-  segments <- segmentation(greatDodecahedron, debug=T)
-  segments <- segmentation(greatIcosahedron) # multiple intersections of face segments - this is TOO SLOW
+  
+  # more interesting ones
+  segments <- segmentation(greatDodecahedron)
   segments <- segmentation(compose(tetrahedron, dual(tetrahedron)))
-  segments <- segmentation(greatStellatedDodecahedron) # does not work yet - gets multiple intersections 
+  
+  segments <- segmentation(greatIcosahedron) # multiple intersections of face segments
+  
+  # dont think it works for this one with 5/2 faces but this could be fixed by also 
+  # intersecting all face edges with eachother just like the on face intersections
+  segments <- segmentation(greatStellatedDodecahedron)
+  
+  compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
+                                          polygonsize = 3,
+                                          vertexsize = 3,
+                                          exampleEdge = c(3, 8),
+                                          name = "5 Tetrahedra")
+  segments <- segmentation(compound5tetrahedra, debug=T, debugPrimaryFace = 1) # Error...
+  
+  # for smallStellatedDo the intersection lines are not correct, they are not *in* the face
+  # maybe first triangulating the {5/2} faces would solve this
   
   # segments <- list(coords = as.matrix(t(as.data.table(hullCoords))), edges = rbindlist(hullEdges))
   clear3d()
-  
-  ## TODO the segmentation routine should tag the results
-  ## as original yes/no and split yes/no
-  edgesOriginal <- segments$edges[onOriginal & (srcVex1==vex1 & srcVex2==vex2)]
-  edgesOnOriginalEdges <- segments$edges[onOriginal & !(srcVex1==vex1 & srcVex2==vex2)]
-  edgesFromFaceIntersections <- segments$edges[(!onOriginal)]
-  
-  verticesOriginal <- which(rownames(segments$coords) != "")
-  verticesOnOriginalEdges <- setdiff(unique(c(edgesOnOriginalEdges$vex1, edgesOnOriginalEdges$vex2)), verticesOriginal)
-  verticesFromFaceIntersections <- setdiff(seq(length(hullCoords)), c(verticesOriginal, verticesOnOriginalEdges))
-  
-  drawDots(segments$coords[verticesOriginal,], label=verticesOriginal, color="green", radius=0.02)
-  drawDots(segments$coords[verticesOnOriginalEdges,], label=verticesOnOriginalEdges, color="blue", radius=0.02)
-  drawDots(segments$coords[verticesFromFaceIntersections,], label=verticesFromFaceIntersections, color="purple", radius=0.02)
-  drawSegments(segments$coords[edgesOriginal$vex1,], segments$coords[edgesOriginal$vex2,], color="green")
-  drawSegments(segments$coords[edgesOnOriginalEdges$vex1,], segments$coords[edgesOnOriginalEdges$vex2,], color="blue")
-  drawSegments(segments$coords[edgesFromFaceIntersections$vex1,], segments$coords[edgesFromFaceIntersections$vex2,], color="purple")
-  
-  ## TODO seperate display with just one face to show the face segments
+  drawSinglePoly(poly)
+
   drawInit(TRUE)
-  drawDots(segments$coords[verticesOriginal,], label=verticesOriginal, color="green", radius=0.02)
-  drawDots(segments$coords[verticesOnOriginalEdges,], label=verticesOnOriginalEdges, color="blue", radius=0.02)
-  drawDots(segments$coords[verticesFromFaceIntersections,], label=verticesFromFaceIntersections, color="purple", radius=0.02)
-  drawSegments(segments$coords[edgesOriginal[F1==1 | F2==1]$vex1,], segments$coords[edgesOriginal[F1==1 | F2==1]$vex2,], color="green")
-  drawSegments(segments$coords[edgesOnOriginalEdges[F1==1 | F2==1]$vex1,], segments$coords[edgesOnOriginalEdges[F1==1 | F2==1]$vex2,], color="blue")
-  drawSegments(segments$coords[edgesFromFaceIntersections[F1==1 | F2==1]$vex1,], segments$coords[edgesFromFaceIntersections[F1==1 | F2==1]$vex2,], color="purple")
+  drawSegments(segments$coords[segments$edges[(onEdge)]$vex1,], segments$coords[segments$edges[(onEdge)]$vex2,], color="blue")
+  drawSegments(segments$coords[segments$edges[(!onEdge)]$vex1,], segments$coords[segments$edges[(!onEdge)]$vex2,], color="red")
   
-  
-  # Points:
-  # We have old face vertices, new segment end points (possibly 0) and segment intersections (possibly 0)
-  # Label them and give them a unique index (eventually: globally)
+  oldPolyPts <- which(rownames(segments$coords)!="")
+  drawDots(segments$coords, label = oldPolyPts, color="green")
+  newEdgePts <- setdiff(c(segments$edges[(onEdge)]$vex1,segments$edges[(onEdge)]$vex2), oldPolyPts)
+  drawDots(segments$coords[newEdgePts,], label = newEdgePts, color="blue")
+  newFacePts <- setdiff(setdiff(seq_len(nrow(segments$coords)), newEdgePts), oldPolyPts)
+  drawDots(segments$coords[newFacePts,], label = newFacePts, color="purple")
+
+  # single plane
+  # TODO for greatIcosahedron shows STRANGE two points 15/16!!
+  drawInit(TRUE)
+  face<-1
+  drawSegments(segments$coords[segments$edges[onEdge & (F1==face | F2==face)]$vex1,], segments$coords[segments$edges[onEdge & (F1==face | F2==face)]$vex2,], color="blue")
+  drawSegments(segments$coords[segments$edges[!onEdge & (F1==face | F2==face)]$vex1,], segments$coords[segments$edges[!onEdge & (F1==face | F2==face)]$vex2,], color="red")
+  pts <- unique(unlist(segments$edges[F1==face | F2==face, c("vex1","vex2")]))
+  drawDots(segments$coords[pts, ], label=pts, color="brown")
   
   # poly$faces[[primaryFace]]
   # start at 1

@@ -4,6 +4,7 @@ shiftrotate <- function(x, n = 1) {
   if (n == 0) x else c(tail(x, -n), head(x, n))
 }
 
+## TODO = seq_len
 # safe sequence from 1 to n - returning empty vector if it would be backwards
 safeseq <- function(n, by=1)
 {
@@ -14,3 +15,4 @@ safeseq <- function(n, by=1)
 
 # often used in polyhedra
 phi <- (1+sqrt(5))/2
+

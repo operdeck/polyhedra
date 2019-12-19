@@ -86,8 +86,24 @@ normalizedistances <- function(coords) # this already works on matrices
 # works for matrices too
 normal <- function(p1, p2, p3)
 {
+  # print(p2)
+  # print(p1)
+  # print(p2-p1)
   n <- crossproduct(p2-p1, p3-p1)
   return (n / vectorlength(n))
+}
+
+# Returns T if outward facing (= rotating anti-clockwise when looking down towards face in direction of origin)
+isNormalOutwardFacing <- function(coords)
+{
+  if (nrow(coords) < 3) return(T) # we dont know
+  # print(coords)
+  # print(class(coords))
+  # print(coords[1,])
+  # print(class(coords[1,]))
+  n <- normal( coords[1,], coords[2,], coords[3,] )
+  mid <- apply(coords, 2, mean)
+  return (vectorlength(mid+n) > vectorlength(mid-n))
 }
 
 distance <- function(a, b = apply(a,2,mean))
