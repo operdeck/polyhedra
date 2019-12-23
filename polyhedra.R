@@ -593,6 +593,12 @@ greatIcosahedron <- buildRegularPoly(icosahedron$coords,
 greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", 
                                    scaling = "vertex")
 
+
+Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
+KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, greatIcosahedron, greatStellatedDodecahedron)
+Regulars <- c(Platonics, KeplerPoinsots)
+
+
 testDescription <- function()
 {
   description(octahedron)
@@ -621,7 +627,19 @@ testRhombic <- function()
 
 kerst2019 <- function()
 {
-  drawInit(new.device = T)
+  drawInit(new.device = T, width = 1536, height = 1536/sqrt(2))
+  rgl.viewpoint(zoom=0.2)
+  compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
+                                          polygonsize = 3,
+                                          vertexsize = 3,
+                                          exampleEdge = c(3, 8),
+                                          name = "5 Tetrahedra")
+  stars <- list(greatStellatedDodecahedron, greatIcosahedron,
+                 smallStellatedDodecahedron,
+                 quasi(greatStellatedDodecahedron),
+                 compose(greatStellatedDodecahedron, dual(greatStellatedDodecahedron)),
+                 compound5tetrahedra, 
+                 quasi(compound5tetrahedra))
   
   xmasCols <- function(n, alpha=1)
   {
@@ -630,12 +648,16 @@ kerst2019 <- function()
   rgl.bg(back = "filled", color="black")
   clear3d()
   set.seed(1)
-  sizeOfUniverse <- 20
-  nStarsInUniverse <- 53
+  sizeOfUniverse <- 40
+  nStarsInUniverse <- 5
   drawTexts(c(0,sizeOfUniverse,0), "Een goed 2020!", color="white")
   for (i in seq(nStarsInUniverse)) {
-    drawSinglePoly(greatStellatedDodecahedron, offset = runif(3,-sizeOfUniverse,sizeOfUniverse), colorCreator = xmasCols, label = "")
+    print(i)
+    drawSinglePoly(stars[[round(runif(1,1,length(stars)))]],
+                   offset = runif(3,-sizeOfUniverse,sizeOfUniverse), 
+                   colorProvider = xmasCols, label = "")
   }
-  rgl.viewpoint(zoom=0.2)
   snapshot3d("kerst2019.png", fmt = "png", top = TRUE )
+  rgl.postscript("kerst2019.svg", "svg", drawText = T) 
+  rgl.postscript("kerst2019.pdf", "pdf", drawText = T) 
 }

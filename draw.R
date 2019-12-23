@@ -34,6 +34,12 @@ drawSegments <- function(coordsFrom, coordsTo, ...)
                c(coordsFrom[2], coordsTo[2]), 
                c(coordsFrom[3], coordsTo[3]), ...)
   } else {
+    if (is.matrix(coordsFrom)) {
+      if (dim(coordsFrom)[2]==2) coordsFrom <- as.matrix(data.table(coordsFrom, z=0)) # provisional 2D support
+    }
+    if (is.matrix(coordsTo)) {
+      if (dim(coordsTo)[2]==2) coordsTo <- as.matrix(data.table(coordsTo, z=0)) # provisional 2D support
+    }
     if (!is.matrix(coordsFrom)) coordsFrom <- matrix(coordsFrom, ncol=3, byrow=T)
     if (!is.matrix(coordsTo)) coordsTo <- matrix(coordsTo, ncol=3, byrow=T)
     coordsFrom <- data.table(coordsFrom)[,row:=seq(.N)]
@@ -44,6 +50,9 @@ drawSegments <- function(coordsFrom, coordsTo, ...)
 
 drawLines <- function(coords, closed=F, ...)
 {
+  if (is.matrix(coords)) {
+    if (dim(coords)[2]==2) coords <- as.matrix(data.table(coords, z=0)) # provisional 2D support  
+  } 
   if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
   lines3d(coords, ...)
   if (closed) lines3d(coords[c(nrow(coords),1),], ...)
@@ -51,12 +60,18 @@ drawLines <- function(coords, closed=F, ...)
 
 drawTexts <- function(coords, text, ...)
 {
+  if (is.matrix(coords)) {
+    if (dim(coords)[2]==2) coords <- as.matrix(data.table(coords, z=0)) # provisional 2D support  
+  } 
   if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
   texts3d(coords, text=text, ...)
 }
 
 drawDots <- function(coords, label=NULL, radius=0.01, ...)
 {
+  if (is.matrix(coords)) {
+    if (dim(coords)[2]==2) coords <- as.matrix(data.table(coords, z=0)) # provisional 2D support  
+  } 
   if (!is.matrix(coords)) coords <- matrix(coords, ncol=3, byrow=T)
   spheres3d(coords, radius=radius, ...)
   if (!is.null(label)) texts3d(1.1*coords, text=label, color="black")
@@ -190,30 +205,40 @@ drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), labe
   }
 }
 
-# returns an array of colors that can be indexed by face number
-assignColors <- function(p, colorCreator = rainbow)
+# Assigns colors to faces. 
+# If there is one body and all faces are the same, applies the (first) color provider to the faces
+# If there is one body but different types of faces, then applys the (first) color provider to the face types
+# If there are multiple bodies, but just a single color provider, that provider is applied per body
+# If there are multiple bodies and multiple providers, the first/second logic is applied per body
+
+assignColors <- function(p, colorProvider = rainbow)
 {
-  if (length(p$bodies) > 1) {
-    bodyColors <- colorCreator(length(p$bodies))
-  }
-  faceType <- as.integer(factor(sapply(p$faces, length))) # faces considered same just by nr of edges (TODO!!)
-  if (max(faceType) > 1) {
-    faceTypeColors <- colorCreator(max(faceType))  
-  }
+  isSingleBody <- (length(p$bodies) == 1)
+  isSingleProvider <- (!is.list(colorProvider))
 
   colors <- sapply(seq(length(p$faces)), function(f) {
-    if (length(p$bodies) > 1) {
-      # multiple bodies - color each body the same
-      faceColor <- bodyColors[which(sapply(p$bodies, function(b) { return(f %in% b)}))]
+    fbody <- which(sapply(p$bodies, function(b) { return(f %in% b)}))
+    faceTypeIndexInCurrentBody <- as.integer(factor(sapply(p$faces [p$bodies[[fbody]]], length)))
+
+    if (!isSingleBody & !isSingleProvider) {
+      # multiple bodies and multiple providers - one per body, recycling
+      bodyColorProvider <- colorProvider[[ ((fbody-1) %% (length(colorProvider))) + 1 ]]
     } else {
-      if (max(faceType) > 1) {
-        # one body but multiple types of faces - each face type a color
-        faceColor <- faceTypeColors[faceType[f]]
-      } else {
-        # one body, one face type - rainbow
-        faceColor <- colorCreator(length(p$faces))[f]
-      }
+      bodyColorProvider <- ifelse(isSingleProvider, colorProvider, colorProvider[[1]])
     }
+    
+    if (!isSingleBody & isSingleProvider) {
+      # color per body
+      faceColor <- bodyColorProvider(length(p$bodies))[fbody]    
+    } else {
+      if (max(faceTypeIndexInCurrentBody) == 1) {
+        # color per face
+        faceColor <- bodyColorProvider(length(p$bodies[[fbody]])) [ which(p$bodies[[fbody]] == f) ]  
+      } else {
+        # color per face type
+        faceColor <- bodyColorProvider(max(faceTypeIndexInCurrentBody)) [faceTypeIndexInCurrentBody[ which(p$bodies[[fbody]] == f) ]]  
+      } 
+    }    
     return(faceColor)
   })    
   
@@ -221,7 +246,7 @@ assignColors <- function(p, colorCreator = rainbow)
 }
 
 # Draw a single polygon. Offset is optional.
-drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p$name), debug=F, colorCreator = rainbow)
+drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p$name), debug=F, colorProvider = rainbow)
 {
   if (debug) {
     drawAxes()
@@ -248,26 +273,28 @@ drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p
   }
   if (!debug) {
     # avoid heavy description call in debug mode
-    label <- paste(label, "(", description(p), ")")
+    if (label != "") {
+      label <- paste(label, "(", description(p), ")")
+    }
   }
   if (nchar(label) > 0) {
     drawTexts( c(offset[1], offset[2] + min(p$coords[,2]) - 1, offset[3]), text = label, color = "black", cex=0.7, pos = 1)
   }
   if (length(p$faces) > 0) { 
-    colors <- assignColors(p, colorCreator)
+    colors <- assignColors(p, colorProvider)
     for (f in seq(length(p$faces))) {
       drawPolygon(p$faces[[f]], p$coords, colors[f], alpha, offset, label=ifelse(debug,fToStr(f),""), drawlines=debug) 
     }
   }
 }
 
-drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debug=F, colorCreator = rainbow)
+drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debug=F, colorProvider = rainbow)
 {
   if (!is.null(names(p))) { # not testing whether there is a name, testing whether this is a list with poly's or not
-    drawSinglePoly(p, offset=start, ifelse(is.null(p$name), "", p$name), debug, colorCreator)
+    drawSinglePoly(p, offset=start, ifelse(is.null(p$name), "", p$name), debug, colorProvider)
   } else {
     for (i in seq(length(p))) {
-      drawSinglePoly(p[[i]], offset=start+(i-1)*delta, p[[i]]$name, debug, colorCreator)  
+      drawSinglePoly(p[[i]], offset=start+(i-1)*delta, p[[i]]$name, debug, colorProvider)  
     }
     # overall label
     rgl.texts(start[1], start[2] + 2, start[3], text = label, color="blue", pos = 4, cex = 1)
@@ -330,8 +357,21 @@ testDrawPoly <- function()
   drawSinglePoly(tetrahedron, debug=T)  
   
   drawSinglePoly(cube)
+  drawSinglePoly(quasi(octahedron))
   
   drawPoly(smallStellatedDodecahedron)
+  drawPoly(greatIcosahedron, colorProvider = function(n) { return(sample(c("green", "red"), n, replace = T))})
+  
+  drawSinglePoly( octahedron, colorProvider = heat.colors )
+  
+  drawSinglePoly(compose(icosahedron, dual(icosahedron)),
+                 colorProvider = list( heat.colors, rainbow ))
+  
+  drawSinglePoly(compose(icosahedron, dual(icosahedron)),
+                 colorProvider = list( function(n) { return( tail(rainbow(32),n)) }, function(n) { return( head(rainbow(32), n)) } ))
+  
+  library(colorspace)
+  drawSinglePoly(icosahedron, colorProvider=qualitative_hcl)
 }
 
 testDrawGallery <- function()
@@ -340,7 +380,7 @@ testDrawGallery <- function()
   drawAxes()
   drawPoly(Platonics, start = c(1, 1, 1), delta = c(1, 1, 1))
   
-  drawPoly(KeplerPoinsots, start = c(1, 1, 3), delta = 1.5*c(1, 1, 1))
+  drawPoly(KeplerPoinsots, start = c(1, 1, 3), delta = 1.5*c(1, 1, 1), colorProvider = heat.colors)
 }
 
 

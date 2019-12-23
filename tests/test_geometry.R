@@ -1,5 +1,25 @@
 context("Geometry")
 
+test_that("projection 3D planar face onto 2D", {
+  
+  # requires dims 1,2
+  coords2d <- projectFace(dodecahedron$coords[ dodecahedron$faces[[1]], ])
+  expect_equivalent(coords2d, matrix(data = c(0.5527864,0.0000000,0.1708204,0.5257311,
+                                         -0.4472136,0.3249197,-0.4472136,-0.3249197,
+                                         0.1708204,-0.5257311), ncol=2, nrow=5, byrow = T), tolerance = 1e-6)
+  # requires dims 2,3
+  coords2d <- projectFace(dodecahedron$coords[ dodecahedron$faces[[5]], ])
+  expect_equivalent(coords2d, matrix(data = c(0.5527864,0.0000000,0.1708204,0.5257311,
+                                              -0.4472136,0.3249197,-0.4472136,-0.3249197,
+                                              0.1708204,-0.5257311), ncol=2, nrow=5, byrow = T), tolerance = 1e-6)
+  
+  # requires dims 1,3
+  coords2d <- projectFace(cube$coords[ cube$faces[[2]], ] )
+  expect_equivalent(coords2d, matrix(data = c( 0.8164966, 0, 0, 0.8164966,
+                                               -0.8164966, 0, 0, -0.8164966), 
+                                     ncol=2, nrow=4, byrow=T), tolerance = 1e-6)
+})
+
 test_that("segment intersection", {
   
   p <- matrix(

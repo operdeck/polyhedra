@@ -52,8 +52,9 @@ Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
 
 ```{r, include=F}
 # TODO use screen better / other viewpoint
+library(colorspace)
 drawInit(width=640, height=400, new.device = T)
-drawPoly(Platonics, start = c(1, 1, 1), delta = c(2, 0, 0), label = "Platonic solids")
+drawPoly(Platonics, start = c(1, 1, 1), delta = c(2, 0, 0), label = "Platonic solids", colorProvider=qualitative_hcl)
 snapshot3d("snapshots/platonics.png", fmt = "png", top = TRUE )
 ```
 
@@ -112,7 +113,8 @@ combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(com
 ```{r, include=F}
 # TODO better layout, maybe two rows
 clear3d()
-drawPoly(combis, start = c(1, 1, 1), delta = c(2, -0.5, 0), label = "Compositions with dual")
+drawPoly(combis, start = c(1, 1, 1), delta = c(2, -0.5, 0), label = "Compositions with dual",
+         colorProvider = list(function(n){head(rainbow(40),n)}, function(n){tail(rainbow(40),n)}))
 snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
 ```
 
@@ -152,7 +154,7 @@ truncatearchimedeans <- lapply(Platonics, truncate)
 
 ```{r, include=F}
 clear3d()
-drawPoly(truncatearchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Truncated regular solids")
+drawPoly(truncatearchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Truncated regular solids", colorProvider = heat.colors)
 snapshot3d("snapshots/truncatearchimedeans.png", fmt = "png", top = TRUE )
 ```
 
@@ -189,11 +191,12 @@ rhombicregulars <- lapply(c(Platonics[seq(length(Platonics))%%2==1],
 
 ```{r, include=F}
 clear3d()
-drawPoly(rhombicregulars, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Rhombic transformation")
+drawPoly(rhombicregulars, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Rhombic transformation",
+         colorProvider = topo.colors)
 snapshot3d("snapshots/rhombicregulars.png", fmt = "png", top = TRUE )
 ```
 
-![Truncated regular solids](snapshots/truncatearchimedeans.png)
+![Truncated regular solids](snapshots/rhombicregulars.png)
 
 ### Irregular results
 

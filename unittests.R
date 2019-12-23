@@ -8,6 +8,7 @@ source("layout.R")
 source("tests/test_utils.R")
 source("tests/test_geometry.R")
 source("tests/test_polyhedra.R")
+source("tests/test_draw.R")
 source("tests/test_layout.R")
 
 test_results <- test_dir("tests", reporter="summary")

@@ -131,9 +131,6 @@ deltaEquals <- function(x, y, delta = 1e-6)
 # angle between vectors v1 and v2
 vectorAngle <- function(w1, w2)
 {
-  #print(asin(vectorlength(crossproductv(v1, v2))/(vectorlength(v1)*vectorlength(v2)))*360/(2*pi))
-  #atan2d(norm(cross(u,v)),dot(u,v))
-  #return (base::atan2(vectorlength(crossproductv(v1, v2)), (as.numeric(v1) %*% as.numeric(v2))))
   r <- as.numeric(as.numeric(w1) %*% as.numeric(w2))/(vectorlength(w1)*vectorlength(w2))
   return (acos(min(max(r,-1),1))) # rounding errors can cause acos problems
 }
@@ -148,7 +145,7 @@ vectorAngle2D <- function(w1, w2)
 innerAngles <- function(coords, center = apply(coords,2,mean))
 {
   v1 <- t(t(coords) - as.numeric(center)) # t as otherwise it will do col wise
-  v2 <- t(t(coords[c(2:nrow(coords),1),]) - as.numeric(center))
+  v2 <- t(t(coords[shiftrotate(1:nrow(coords)),]) - as.numeric(center))
   return (sapply(seq(nrow(v1)), function(i) { vectorAngle(v1[i,], v2[i,]) }))
 }
 
@@ -159,7 +156,26 @@ rotationMatrix2D <- function(theta)
   #return (matrix(c(cos(theta), sin(theta), -sin(theta), cos(theta)), nrow=2))
 }
 
+# Find best 2 axes to project 3D vectors onto
+getProjectionAxes <- function(u, v)
+{
+  alldims <- list(1:2,2:3,c(1,3))
+  for (dims in alldims) {
+    D <- perpproduct(u[dims], v[dims])
+    if (!deltaEquals(0, abs(D))) return(dims) ## TODO could also try find the highest one
+  }
+  if (deltaEquals(0, vectorlength(u[dims])+vectorlength(v[dims]))) { 
+    # Still 0 when vectors are 0 length? Then find dim so that we get non-zero length vectors
+    for (dims in alldims) {
+      if (!deltaEquals(0, vectorlength(u[dims])+vectorlength(v[dims]))) return(dims)
+    }
+  }
+  return(dims)
+}
+
+
 # Check if face is flat, given a matrix of coordinates
+# TODO: reconsider given new way to project etc
 isFlatFace <- function(faceCoords)
 {
   if (nrow(faceCoords) <= 3) return(T)
@@ -182,13 +198,40 @@ isFlatFace <- function(faceCoords)
 #' @param coords3D Coordinates of the face in 3D
 #'
 #' @return matrix with the coordinates of the projected face
-projectFace <- function(coords3D)
+projectFace_old <- function(coords3D)
 {
-  angles <- cumsum(innerAngles(coords3D))
-  radii <- distance(coords3D)
+  angles <- shiftrotate(cumsum(innerAngles(coords3D)),-1) # shift so point 1 is at angle 0
+  radii <- shiftrotate(distance(coords3D),-1)
   return(matrix(c(x = cos(angles) * radii, 
                   y = sin(angles) * radii),
                 nrow = nrow(coords3D)))
+}
+
+projectFace <- function(coords3D)
+{
+  # n = normal to face given by these coordinates
+  # c = center of this face
+  # v = vector from center to p1 and basis for x-coordinates
+  # r = orthogonal to both n and v and basis for y-coordinates
+  # then any point pn will be expressed in 3D as pn = c + alpha.v + beta.r
+  # returned 2D coordinates have center = 0,0 and x,y as alpha,beta
+  
+  n <- normal(p1 = coords3D[1,], p2 = coords3D[2,], p3 = coords3D[3, ])
+  c <- apply(coords3D,2,mean)
+  v <- coords3D[1,] - c
+  r <- crossproduct(n, v)
+
+  dims <- getProjectionAxes(v, r)
+
+  scale <- vectorlength(v) / perpproduct(v[dims],r[dims])
+  coords2D <- t(apply(coords3D, 1, function(pn) {
+    q <- pn - c
+    alpha <- scale * perpproduct(q[dims],r[dims]) 
+    beta <- scale * perpproduct(v[dims],q[dims])
+    return(c(alpha, beta))
+  }))
+
+  return(coords2D)  
 }
 
 #' Get the 3D minimum distance between 2 lines
@@ -384,24 +427,13 @@ intersect_2Segments <- function(S1_P0, S1_P1, S2_P0, S2_P1, firstIsLine = F)
   
   u <- S1_P1 - S1_P0
   v <- S2_P1 - S2_P0
+
+  # Get projection axes so u and v are (if possible) not colinear  
+  dims <- getProjectionAxes(u, v)
+  D <- perpproduct(u[dims], v[dims])
   
-  # the rest of the function works with a projection on just 2 dimensions
-  # we try to choose them such that u and v are not parallel
-  alldims <- list(1:2,2:3,c(1,3))
-  for (dims in alldims) {
-    u_2D <- u[dims]
-    v_2D <- v[dims]
-    D <- perpproduct(u_2D,v_2D)
-    if (!deltaEquals(0, abs(D))) break
-  }
-  if (deltaEquals(0, abs(D)) & deltaEquals(0, vectorlength(u_2D)) & deltaEquals(0, vectorlength(v_2D))) { 
-    # Still 0 when vectors are 0 length? Then find dim so that we get non-zero length vectors
-    for (dims in alldims) {
-      u_2D <- u[dims]
-      v_2D <- v[dims]
-      if (!deltaEquals(0, vectorlength(u_2D)+vectorlength(v_2D))) break
-    }
-  }
+  u_2D <- u[dims]
+  v_2D <- v[dims]
   S1_P0_2D <- S1_P0[dims]
   S1_P1_2D <- S1_P1[dims]
   S2_P0_2D <- S2_P0[dims]

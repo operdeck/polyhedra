@@ -5,7 +5,6 @@ source("draw.R")
 ## Remaining Platonic solids
 cube <- dual(octahedron, name = "Cube")
 dodecahedron <- dual(icosahedron, name = "Dodecahedron")
-Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
 
 ## Regular star solids
 greatDodecahedron <- buildRegularPoly(coords = icosahedron$coords, 
@@ -22,10 +21,6 @@ greatIcosahedron <- buildRegularPoly(icosahedron$coords,
                                      exampleEdge = c(2, 6),
                                      name = "Great Icosahedron")
 greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", scaling = "vertex")
-
-KeplerPoinsots <- list(greatDodecahedron, smallStellatedDodecahedron, greatIcosahedron, greatStellatedDodecahedron)
-
-Regulars <- c(Platonics, KeplerPoinsots)
 
 Duals <- lapply(Regulars[seq(length(Regulars))%%2==1], dual)
 

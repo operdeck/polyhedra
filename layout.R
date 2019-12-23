@@ -818,8 +818,83 @@ segmentation <- function(poly, debug=F, debugPrimaryFace=NA)
                edges = rbind(onEdgeSegments[, onEdge:=T], onFaceSegments[, onEdge:=F])))
 }
 
-# Find segment end points for the intersection of a line with one polygon
+drawSegmentation <- function(segments, singleFace = NULL)
+{
+  if (is.null(singleFace)) {
+    e <- segments$edges
+  } else {
+    e <- segments$edges[F1==singleFace | F2==singleFace]  
+  }
+  pts <- unique(unlist(e[, c("vex1","vex2")]))
+  
+  drawSegments(segments$coords[e[(onEdge)]$vex1,], segments$coords[e[(onEdge)]$vex2,], color="blue")
+  drawSegments(segments$coords[e[(!onEdge)]$vex1,],segments$coords[e[(!onEdge)]$vex2,], color="red")
+  
+  oldPolyPts <- intersect(pts, which(rownames(segments$coords)!=""))
+  drawDots(segments$coords[oldPolyPts, ], label = oldPolyPts, color="green")
+  newEdgePts <- intersect(pts, setdiff(c(e[(onEdge)]$vex1,e[(onEdge)]$vex2), oldPolyPts))
+  drawDots(segments$coords[newEdgePts,], label = newEdgePts, color="blue")
+  newFacePts <- intersect(pts, setdiff(setdiff(seq_len(nrow(segments$coords)), newEdgePts), oldPolyPts))
+  drawDots(segments$coords[newFacePts,], label = newFacePts, color="purple")
+}
+
 hull <- function(poly)
+{
+  poly <- greatDodecahedron
+  seg <- segmentation(poly)  
+  
+  drawInit(TRUE)
+  drawSegmentation(seg)
+  drawInit(TRUE)
+  drawSegmentation(seg, singleFace = 1)
+  
+  face <- 1 # for all faces
+  
+  facePts <- unique(unlist(seg$edges[F1==face | F2==face, c("vex1","vex2")]))
+  face2D <- projectFace(coords3D = seg$coords[facePts,]) 
+  rownames(face2D) <- facePts
+  
+  drawInit(TRUE)
+  drawDots(face2D, label = facePts)
+  
+  remainingEdgesForFace <- which(seg$edges[, onEdge & (F1==face | F2==face)])
+  subFace <- list()
+  while (length(remainingSegsForFace) > 0) {
+    currentSegIdx <- remainingEdgesForFace[1]
+    p0 <- seg$edges[currentSegIdx]$vex1
+    p1 <- seg$edges[currentSegIdx]$vex2
+    startPt <- p0
+    q <- -1
+    while (length(remainingSegsForFace) > 0 & q != startPt) {
+      subFace[[1+length(subFace)]] <- p0
+      
+      # find segments that p1 is connected to
+      candidateNextSegIdx <- which(seg$edges[, (vex1==p1 | vex2==p1) & (F1==face | F2==face) & (vex1 != p0) & (vex2 != p0)])
+      candidateNextPts <- apply(seg$edges[candidateNextSegIdx], 1, function(e) {return(ifelse(e[1]==p1,e[2],e[1]))})
+      
+      # TODO do it properly
+      #### vectorAngle2D <- function(w1, w2)
+      
+      
+      smallestAngle <- which.min(sapply(candidateNextPts, function(p) {
+        # TODO does not work in 3D, need full angles
+        vectorAngle(seg$coords[p0,]-seg$coords[p1,], seg$coords[p,]-seg$coords[p1,])
+      }))
+      q <- candidateNextPts[smallestAngle]
+      if (q == subFace[[1]]) {
+        # Completed a face
+        print("Completed sub")
+        print(subFace)
+        subFace <- list()
+      }
+      remainingSegsForFace <- setdiff(remainingSegsForFace, currentSegIdx)
+      p0 <- p1
+      p1 <- q
+    }
+  }
+}
+
+testSegmentation <- function()
 {
   poly <- greatDodecahedron
   poly <- compose(tetrahedron, dual(tetrahedron))
@@ -855,7 +930,7 @@ hull <- function(poly)
   # segments <- list(coords = as.matrix(t(as.data.table(hullCoords))), edges = rbindlist(hullEdges))
   clear3d()
   drawSinglePoly(poly)
-
+  
   drawInit(TRUE)
   drawSegments(segments$coords[segments$edges[(onEdge)]$vex1,], segments$coords[segments$edges[(onEdge)]$vex2,], color="blue")
   drawSegments(segments$coords[segments$edges[(!onEdge)]$vex1,], segments$coords[segments$edges[(!onEdge)]$vex2,], color="red")
@@ -866,7 +941,7 @@ hull <- function(poly)
   drawDots(segments$coords[newEdgePts,], label = newEdgePts, color="blue")
   newFacePts <- setdiff(setdiff(seq_len(nrow(segments$coords)), newEdgePts), oldPolyPts)
   drawDots(segments$coords[newFacePts,], label = newFacePts, color="purple")
-
+  
   # single plane
   # TODO for greatIcosahedron shows STRANGE two points 15/16!!
   drawInit(TRUE)
