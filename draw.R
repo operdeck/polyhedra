@@ -297,10 +297,49 @@ drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debu
       drawSinglePoly(p[[i]], offset=start+(i-1)*delta, p[[i]]$name, debug, colorProvider)  
     }
     # overall label
-    rgl.texts(start[1], start[2] + 2, start[3], text = label, color="blue", pos = 4, cex = 1)
+    title3d(main=label, color="blue")
+    #rgl.texts(start[1], start[2] + 2, start[3], text = label, color="blue", pos = 4, cex = 1)
   }
 }
 # rgl.close()
+
+drawSkeleton <- function(p)
+{
+  clear3d()
+  p<-cube
+  p <- buildRegularPoly(dodecahedron$coords,
+                                          polygonsize = 3,
+                                          vertexsize = 3,
+                                          exampleEdge = c(3, 8),
+                                          name = "5 Tetrahedra")
+  cols <- assignColors(p)
+  edges <- rbindlist(lapply(which(upper.tri(p$coordPairToEdge) & (p$coordPairToEdge != 0)), function(edge) {
+    dim <- nrow(p$coordPairToEdge)
+    col <- (edge-1)%%dim+1
+    row <- (edge-1)%/%dim+1
+    return (data.table(vex1=row, vex2=col, F1=p$coordPairToFaces[row,col], F2=p$coordPairToFaces[col,row]))
+  }))
+  
+  #drawSegments(p$coords[edges$vex1,], p$coords[edges$vex2,], color="green")
+  
+  d <- 0.1
+  center <- apply(p$coords, 2, mean)
+  for (i in seq_len(nrow(edges))) {
+    p1 <- p$coords[edges$vex1[i],]
+    p2 <- p$coords[edges$vex2[i],]
+    
+    d1 <- crossproduct(center-p1, p2-p1)
+    d2 <- crossproduct(center-p2, p1-p2)
+    
+    x1a <- p1 + d*d1/vectorlength(d1)
+    x2a <- p2 + d*d2/vectorlength(d2)
+    x1b <- p1 - d*d1/vectorlength(d1)
+    x2b <- p2 - d*d2/vectorlength(d2)
+    
+    drawConvexPolygon(matrix(c(x1a, x2a, x2b, x1b), ncol = 3, byrow = T), 
+                      color=c(cols[edges$F1[i]], cols[edges$F2[i]]))
+  }
+}
 
 # draw a n/d polygon
 testDrawPolygon <- function(n, d=1)
@@ -383,4 +422,20 @@ testDrawGallery <- function()
   drawPoly(KeplerPoinsots, start = c(1, 1, 3), delta = 1.5*c(1, 1, 1), colorProvider = heat.colors)
 }
 
+# # play3d(spin3d())
 
+# drawConvexPolygon( cube$coords[cube$faces[[1]], ], alpha=0.5, texture="arabic.png", textype="rgb", shininess=60, color="red")
+# bg3d(sphere = TRUE, texture = system.file("textures/sunsleep.png", package = "rgl"), back = "filled" )
+
+# Replace DrawPoly with mfrow/title
+#
+# > clear3d()
+# > mfrow3d(ceiling(sqrt(length(KeplerPoinsots))), ceiling(sqrt(length(KeplerPoinsots))), sharedMouse = T)
+# > for (i in seq(length(KeplerPoinsots))) {
+#   +   if (i > 1) next3d()
+#   +   drawSinglePoly(KeplerPoinsots[[i]])
+#   + }
+# > rglwidget(elementId = "KeplerPoinsots")
+#
+# title3d
+# 

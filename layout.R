@@ -853,41 +853,55 @@ hull <- function(poly)
   facePts <- unique(unlist(seg$edges[F1==face | F2==face, c("vex1","vex2")]))
   face2D <- projectFace(coords3D = seg$coords[facePts,]) 
   rownames(face2D) <- facePts
+  map3D_2Dcoords <- numeric(length = max(max(seg$edges$vex1), max(seg$edges$vex2)))
+  map3D_2Dcoords[facePts] <- seq_len(length(facePts))
   
   drawInit(TRUE)
   drawDots(face2D, label = facePts)
+  drawSegments(face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex1], ],
+               face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex2], ],
+               color="blue")
   
   remainingEdgesForFace <- which(seg$edges[, onEdge & (F1==face | F2==face)])
-  subFace <- list()
-  while (length(remainingSegsForFace) > 0) {
+  while (length(remainingEdgesForFace) > 0) {
     currentSegIdx <- remainingEdgesForFace[1]
     p0 <- seg$edges[currentSegIdx]$vex1
     p1 <- seg$edges[currentSegIdx]$vex2
     startPt <- p0
     q <- -1
-    while (length(remainingSegsForFace) > 0 & q != startPt) {
-      subFace[[1+length(subFace)]] <- p0
+    subFace <- list()
+    subFace[[1]] <- p0
+    while (length(remainingEdgesForFace) > 0 & q != startPt) {
+      subFace[[1+length(subFace)]] <- p1
       
       # find segments that p1 is connected to
-      candidateNextSegIdx <- which(seg$edges[, (vex1==p1 | vex2==p1) & (F1==face | F2==face) & (vex1 != p0) & (vex2 != p0)])
+      candidateNextSegIdx <- which(seg$edges[, (vex1==p1 | vex2==p1) & (F1==face | F2==face)])
       candidateNextPts <- apply(seg$edges[candidateNextSegIdx], 1, function(e) {return(ifelse(e[1]==p1,e[2],e[1]))})
       
-      # TODO do it properly
-      #### vectorAngle2D <- function(w1, w2)
+      # angles around p1
+      candidateAngles <- sapply(candidateNextPts, function(p) {
+        w <- face2D[map3D_2Dcoords[p],]-face2D[map3D_2Dcoords[p1],]
+        theta<-atan2(w[2], w[1])
+        #if (theta<0) theta <- theta+pi # hmm
+        return(theta*180/pi)
+      })
+      orderedCandidates <- candidateNextPts[order(candidateAngles)]
+      cat("Ordered candidates around",p1,":",orderedCandidates,fill = T)
+      # fix normal?
+      if (!isNormalOutwardFacing(seg$coords[orderedCandidates,])) {
+        orderedCandidates <- rev(orderedCandidates)  
+      }
       
-      
-      smallestAngle <- which.min(sapply(candidateNextPts, function(p) {
-        # TODO does not work in 3D, need full angles
-        vectorAngle(seg$coords[p0,]-seg$coords[p1,], seg$coords[p,]-seg$coords[p1,])
-      }))
-      q <- candidateNextPts[smallestAngle]
-      if (q == subFace[[1]]) {
+      j <- which(orderedCandidates == p0)
+      q <- shiftrotate(orderedCandidates,-1)[j] # take previous one
+
+      if (q == startPt) {
         # Completed a face
         print("Completed sub")
-        print(subFace)
-        subFace <- list()
+        print(unlist(subFace))
+        break
       }
-      remainingSegsForFace <- setdiff(remainingSegsForFace, currentSegIdx)
+      remainingEdgesForFace <- setdiff(remainingEdgesForFace, currentSegIdx)
       p0 <- p1
       p1 <- q
     }

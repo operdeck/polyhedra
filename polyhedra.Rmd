@@ -32,13 +32,11 @@ octahedron <- buildRegularPoly(coords = rbind(expand.grid(x = c(-1,1), y = 0, z 
                                name = "Octahedron")
 ```
 
-```{r, include=F}
-drawInit(width=400, height=400)
+```{r}
+drawInit(new.device = T, width=400, height=400)
 drawSinglePoly(octahedron, debug = T)
-snapshot3d("snapshots/octahedron.png", fmt = "png", top = TRUE )
+rglwidget(elementId = "octahedron-debug")
 ```
-
-![Octahedron](snapshots/octahedron.png)
 
 The tetrahedron and icosahedron are defined in a similar way in the project. The other two Platonic solids are derived by applying a *dual* transformation. Together that gets us the 5 Platonic colids:
 

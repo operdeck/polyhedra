@@ -139,6 +139,7 @@ vectorAngle <- function(w1, w2)
 vectorAngle2D <- function(w1, w2)
 {
   theta <-  atan2(w1[2], w1[1]) - atan2(w2[2], w2[1])
+  return(theta)
 }
 
 # given a matrix of coordinates of a face, give the angles of the vectors from the center to the consecutive vertices
