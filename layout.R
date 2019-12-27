@@ -838,6 +838,7 @@ drawSegmentation <- function(segments, singleFace = NULL)
   drawDots(segments$coords[newFacePts,], label = newFacePts, color="purple")
 }
 
+# very simple version that assumes each edge segment has a triangle
 hull <- function(poly)
 {
   poly <- greatDodecahedron
@@ -851,60 +852,40 @@ hull <- function(poly)
   face <- 1 # for all faces
   
   facePts <- unique(unlist(seg$edges[F1==face | F2==face, c("vex1","vex2")]))
-  face2D <- projectFace(coords3D = seg$coords[facePts,]) 
-  rownames(face2D) <- facePts
-  map3D_2Dcoords <- numeric(length = max(max(seg$edges$vex1), max(seg$edges$vex2)))
-  map3D_2Dcoords[facePts] <- seq_len(length(facePts))
   
-  drawInit(TRUE)
-  drawDots(face2D, label = facePts)
-  drawSegments(face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex1], ],
-               face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex2], ],
-               color="blue")
+  # 2D projection
+  # works but not needed currently
+  # face2D <- projectFace(coords3D = seg$coords[facePts,]) 
+  # rownames(face2D) <- facePts
+  # map3D_2Dcoords <- numeric(length = max(max(seg$edges$vex1), max(seg$edges$vex2)))
+  # map3D_2Dcoords[facePts] <- seq_len(length(facePts))
+  # 
+  # drawInit(TRUE)
+  # drawDots(face2D, label = facePts)
+  # drawSegments(face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex1], ],
+  #              face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex2], ],
+  #              color="blue")
   
   remainingEdgesForFace <- which(seg$edges[, onEdge & (F1==face | F2==face)])
   while (length(remainingEdgesForFace) > 0) {
     currentSegIdx <- remainingEdgesForFace[1]
     p0 <- seg$edges[currentSegIdx]$vex1
     p1 <- seg$edges[currentSegIdx]$vex2
-    startPt <- p0
-    q <- -1
-    subFace <- list()
-    subFace[[1]] <- p0
-    while (length(remainingEdgesForFace) > 0 & q != startPt) {
-      subFace[[1+length(subFace)]] <- p1
-      
-      # find segments that p1 is connected to
-      candidateNextSegIdx <- which(seg$edges[, (vex1==p1 | vex2==p1) & (F1==face | F2==face)])
-      candidateNextPts <- apply(seg$edges[candidateNextSegIdx], 1, function(e) {return(ifelse(e[1]==p1,e[2],e[1]))})
-      
-      # angles around p1
-      candidateAngles <- sapply(candidateNextPts, function(p) {
-        w <- face2D[map3D_2Dcoords[p],]-face2D[map3D_2Dcoords[p1],]
-        theta<-atan2(w[2], w[1])
-        #if (theta<0) theta <- theta+pi # hmm
-        return(theta*180/pi)
-      })
-      orderedCandidates <- candidateNextPts[order(candidateAngles)]
-      cat("Ordered candidates around",p1,":",orderedCandidates,fill = T)
-      # fix normal?
-      if (!isNormalOutwardFacing(seg$coords[orderedCandidates,])) {
-        orderedCandidates <- rev(orderedCandidates)  
-      }
-      
-      j <- which(orderedCandidates == p0)
-      q <- shiftrotate(orderedCandidates,-1)[j] # take previous one
-
-      if (q == startPt) {
-        # Completed a face
-        print("Completed sub")
-        print(unlist(subFace))
-        break
-      }
-      remainingEdgesForFace <- setdiff(remainingEdgesForFace, currentSegIdx)
-      p0 <- p1
-      p1 <- q
+    
+    # find q directly connected to both p0 and p1 to form a triangle at the edge segment
+    q <- setdiff(intersect(
+      unique(unlist(seg$edges[(vex1==p0 | vex2==p0) & (F1==face | F2==face), c("vex1","vex2")])),
+      unique(unlist(seg$edges[(vex1==p1 | vex2==p1) & (F1==face | F2==face), c("vex1","vex2")]))),
+      c(p0,p1))
+    
+    if (length(q) != 1) stop("Expected 1 point to form triangle")
+    
+    if(!isNormalOutwardFacing(seg$coords[c(p0,p1,q),])) {
+      triangles3d(seg$coords[c(p0,p1,q),], color="yellow" )
+    } else {
+      triangles3d(seg$coords[c(q,p1,p0),], color="yellow" ) 
     }
+    remainingEdgesForFace <- setdiff(remainingEdgesForFace, currentSegIdx)
   }
 }
 
