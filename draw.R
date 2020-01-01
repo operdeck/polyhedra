@@ -6,6 +6,9 @@ source("geometry.R")
 # triangles3d(x=c(1,3,2),y=c(2,3,1),z=c(0,0,0),color=c("blue","yellow"))
 # args to 3d can be matrix e.g. points3d(cube$coords)
 # lines3d(matrix(c(1,2,3,1,2,6),ncol=3,byrow=T),color="grey")
+# legend:
+# legend3d("topright", legend = paste('Type', c('A', 'B', 'C')), pch = 16, col = rainbow(3), cex=1, inset=c(0.02))
+spacing <- 0.1
 
 eToStr <- function(poly, e)
 {
@@ -17,14 +20,15 @@ fToStr <- function(f)
   return(paste0("F",f))
 }
 
-drawInit <- function(new.device = FALSE, bg = "white", width = 640, height = width) {
+# width = 640, height = width
+drawInit <- function(new.device = T, bg = "white", width = 1024, height = width*2/3) {
   if( new.device | rgl.cur() == 0 ) {
     rgl.open()
     par3d(windowRect = 50 + c( 0, 0, width, height ) )
     rgl.bg(color = bg )
   }
   rgl.clear(type = c("shapes", "bboxdeco"))
-  rgl.viewpoint(theta = 15, phi = 20, zoom = 0.7)
+  rgl.viewpoint(theta = 30, phi = 30, zoom = 1)
 }
 
 drawSegments <- function(coordsFrom, coordsTo, ...)
@@ -173,7 +177,6 @@ drawAxes <- function()
 
 drawPolygon <- function(face, coords, col="grey", alpha=1, offset=c(0,0,0), label=NULL, drawlines=F, drawvertices=F)
 {
-  spacing <- 0.1
   center <- apply(coords[face,], 2, mean)
   if (drawlines) {
     drawLines(t(t(coords[face,]) + offset), closed=T, color="orange")
@@ -250,7 +253,6 @@ drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p
 {
   if (debug) {
     drawAxes()
-    spacing <- 0.1
     alpha <- 0.6 # in debug make somewhat transparent
     
     # coords
@@ -279,6 +281,7 @@ drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p
   }
   if (nchar(label) > 0) {
     drawTexts( c(offset[1], offset[2] + min(p$coords[,2]) - 1, offset[3]), text = label, color = "black", cex=0.7, pos = 1)
+    #title3d(sub = label)
   }
   if (length(p$faces) > 0) { 
     colors <- assignColors(p, colorProvider)
@@ -290,16 +293,23 @@ drawSinglePoly <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p
 
 drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debug=F, colorProvider = rainbow)
 {
+  clear3d()
+  title3d(main=label, color="blue")
   if (!is.null(names(p))) { # not testing whether there is a name, testing whether this is a list with poly's or not
     drawSinglePoly(p, offset=start, ifelse(is.null(p$name), "", p$name), debug, colorProvider)
   } else {
+    cols <- ceiling(sqrt(length(p)))
+    rows <- ceiling(length(p)/cols)
+    mfrow3d(rows, cols, sharedMouse = T)
     for (i in seq(length(p))) {
+      next3d()
       drawSinglePoly(p[[i]], offset=start+(i-1)*delta, p[[i]]$name, debug, colorProvider)  
     }
     # overall label
-    title3d(main=label, color="blue")
+    #title3d(main=label, color="blue")
     #rgl.texts(start[1], start[2] + 2, start[3], text = label, color="blue", pos = 4, cex = 1)
   }
+  rglwidget(elementId = label)
 }
 # rgl.close()
 

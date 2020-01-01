@@ -33,7 +33,7 @@ octahedron <- buildRegularPoly(coords = rbind(expand.grid(x = c(-1,1), y = 0, z 
 ```
 
 ```{r}
-drawInit(new.device = T, width=400, height=400)
+drawInit(T)
 drawSinglePoly(octahedron, debug = T)
 rglwidget(elementId = "octahedron-debug")
 ```
@@ -51,7 +51,7 @@ Platonics <- list(tetrahedron, octahedron, cube, icosahedron, dodecahedron)
 ```{r, include=F}
 # TODO use screen better / other viewpoint
 library(colorspace)
-drawInit(width=640, height=400, new.device = T)
+drawInit(F)
 drawPoly(Platonics, start = c(1, 1, 1), delta = c(2, 0, 0), label = "Platonic solids", colorProvider=qualitative_hcl)
 snapshot3d("snapshots/platonics.png", fmt = "png", top = TRUE )
 ```
@@ -85,7 +85,7 @@ Regulars <- c(Platonics, KeplerPoinsots)
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(KeplerPoinsots, start = c(1, 1, 1), delta = c(2, -0.5, 0), label = "Kepler Poinsot solids")
 snapshot3d("snapshots/keplerpoinsots.png", fmt = "png", top = TRUE )
 ```
@@ -109,8 +109,7 @@ combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(com
 ```
 
 ```{r, include=F}
-# TODO better layout, maybe two rows
-clear3d()
+drawInit(F)
 drawPoly(combis, start = c(1, 1, 1), delta = c(2, -0.5, 0), label = "Compositions with dual",
          colorProvider = list(function(n){head(rainbow(40),n)}, function(n){tail(rainbow(40),n)}))
 snapshot3d("snapshots/regulars-with-duals.png", fmt = "png", top = TRUE )
@@ -132,7 +131,7 @@ quasiarchimedeans <- lapply(Regulars[seq(length(Regulars))%%2==1], quasi)
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(quasiarchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Quasi regular solids")
 snapshot3d("snapshots/quasiarchimedeans.png", fmt = "png", top = TRUE )
 ```
@@ -151,7 +150,7 @@ truncatearchimedeans <- lapply(Platonics, truncate)
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(truncatearchimedeans, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Truncated regular solids", colorProvider = heat.colors)
 snapshot3d("snapshots/truncatearchimedeans.png", fmt = "png", top = TRUE )
 ```
@@ -166,7 +165,7 @@ truncatedstars <- lapply(KeplerPoinsots[c(1,3)], truncate)
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(truncatedstars, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Truncated Kepler Poinsot solids")
 snapshot3d("snapshots/truncatedstars.png", fmt = "png", top = TRUE )
 ```
@@ -188,7 +187,7 @@ rhombicregulars <- lapply(c(Platonics[seq(length(Platonics))%%2==1],
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(rhombicregulars, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Rhombic transformation",
          colorProvider = topo.colors)
 snapshot3d("snapshots/rhombicregulars.png", fmt = "png", top = TRUE )
@@ -209,7 +208,7 @@ irregulars <- list( truncate(truncate(truncate(dodecahedron))),
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(irregulars, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Some irregular solids")
 snapshot3d("snapshots/irregulars.png", fmt = "png", top = TRUE )
 ```
@@ -218,7 +217,7 @@ snapshot3d("snapshots/irregulars.png", fmt = "png", top = TRUE )
 
 # 2D Layouts
 
-The 3D-solids can also be rendered onto 2D layouts suitable for printing and modeling in paper. Currently only simple convex solids are supported but plans include to extend to arbirary complex ones.
+The 3D-solids can also be rendered onto 2D layouts suitable for printing and modeling in paper. 
 
 The 2D layout is rendered as a ggplot object which can be exported as SVG then opened in a browser or other viewer and printed in high res. Perhaps even direct PDF output is possible depending on the installation of R.
 
@@ -228,6 +227,16 @@ They layout algorithm tries to build a maximally compact layout but search can b
 layout2d <- get2DLayout(dodecahedron)
 
 ggsave(file=file.path("layouts",paste0("layout ", dodecahedron$name, ".svg")), 
+       plot=layout2d, width=10, height=10)
+layout2d
+```
+
+Rendering of layouts is not limited to simple convex polyhedra. Even layouts for more complex polyhedra can be rendered by first generating the hull of those. The hull algorithm is still work in progress and not all polyhedra can yet be processed properly.
+
+```{r, width=10, height=10}
+layout2d <- get2DLayout(hull(greatDodecahedron, debug=F))
+
+ggsave(file=file.path("layouts",paste0("layout ", greatDodecahedron$name, ".svg")), 
        plot=layout2d, width=10, height=10)
 layout2d
 ```
@@ -249,7 +258,7 @@ compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(list(compound5tetrahedra, dual(compound5tetrahedra)), 
          start = c(1, 1, 1), delta = c(2, -0.5, 0), "Compound of 5 Tetrahedra + dual")
 snapshot3d("snapshots/compound5tetrahedra.png", fmt = "png", top = TRUE )
@@ -265,7 +274,7 @@ compound5truncatedTetrahedra <- truncate(compound5tetrahedra)
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(list(compound5octahedra, compound5truncatedTetrahedra),
          start = c(1, 1, 1), delta = c(2, -0.5, 0), "Transformations of 5 Tetrahedra")
 snapshot3d("snapshots/trafo5octahedra.png", fmt = "png", top = TRUE )
@@ -284,8 +293,8 @@ compound10tetrahedra <- compose(compound5tetrahedra, dual(compound5tetrahedra),
 ```
 
 ```{r, include=F}
-clear3d()
-drawSinglePoly(compound10tetrahedra)
+drawInit(F)
+drawPoly(compound10tetrahedra)
 snapshot3d("snapshots/compound10tetrahedra.png", fmt = "png", top = TRUE )
 ```
 
@@ -309,7 +318,7 @@ moreDodecahedronStellations <- list(compound5Cubes,
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(moreDodecahedronStellations, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Stellations in Dodecahedron family")
 snapshot3d("snapshots/compound5cubes.png", fmt = "png", top = TRUE )
 ```
@@ -319,7 +328,7 @@ snapshot3d("snapshots/compound5cubes.png", fmt = "png", top = TRUE )
 ## Variation on Quasi Dodecahedron
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 variationOnQuasiDodecahedron <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4), name="Variation on Quasi Dodecahedron")
 drawPoly(variationOnQuasiDodecahedron)
 snapshot3d("snapshots/variationOnQuasiDodecahedron.png", fmt = "png", top = TRUE )
@@ -339,7 +348,7 @@ cube_discoveries$specs
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(cube_discoveries$polyhedra, label = "Discoveries based on cube")
 snapshot3d("snapshots/cube_discoveries.png", fmt = "png", top = TRUE )
 ```
@@ -354,7 +363,7 @@ dodecahedron_discoveries$specs
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(dodecahedron_discoveries$polyhedra, label = "Discoveries based on dodecahedron")
 snapshot3d("snapshots/dodecahedron_discoveries.png", fmt = "png", top = TRUE )
 ```
@@ -367,7 +376,7 @@ icosahedron_discoveries$specs
 ```
 
 ```{r, include=F}
-clear3d()
+drawInit(F)
 drawPoly(icosahedron_discoveries$polyhedra, label = "Discoveries based on icosahedron")
 snapshot3d("snapshots/icosahedron_discoveries.png", fmt = "png", top = TRUE )
 ```

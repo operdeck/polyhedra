@@ -1,5 +1,16 @@
 context("Polyhedra operations")
 
+test_that( "Topology", {
+  expect_equal( length(cube$faces), 6 ) # faces
+  expect_equal( length(cube$coords), 8 ) # vertices
+  expect_equal( nrow(cube$edgeToFaces), 12 ) # edges = faces + vertices - 2
+  
+  expect_equal( length(icosahedron$faces), 20 )
+  expect_equal( length(icosahedron$coords), 12 )
+  expect_equal( nrow(icosahedron$edgeToFaces), 30 )
+  
+})
+
 test_that( "Description", {
   # platonic
   expect_equal(description(cube), "{4,3}")

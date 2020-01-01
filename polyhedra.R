@@ -88,8 +88,11 @@ buildFace <- function(p, polygonsize, vertexsize, edgelength, aFace = c(), debug
 }
 
 # Internal call to set everything after coords and faces are defined
-setPoly <- function(coords, faces, name, debug=F)
+setPoly <- function(coords, faces, name, original=NULL, originalFaceMap=NULL, debug=F)
 {
+  # TODO consider making sure the list of coordinates is not superfluous
+  # ie only contains references from faces, nothing more, nothing less
+  
   if (ncol(coords) != 3) stop("Coords must be 3D")
   coords <- as.matrix(coords)
   
@@ -105,7 +108,7 @@ setPoly <- function(coords, faces, name, debug=F)
     }
   }
   
-  newPoly <- list(coords=coords, faces=faces, name=name)
+  newPoly <- list(coords=coords, faces=faces, name=name, original=original, originalFaceMap=originalFaceMap)
   t <- topology(newPoly)
   for (x in names(t)) {
     newPoly[[x]] <- t[[x]] # copy over the topology attributes
@@ -126,7 +129,6 @@ buildRegularPoly <- function(coords, polygonsize, vertexsize, exampleEdge = c(1,
   coords <- normalizedistances(coords)
   
   if (debug) {
-    spacing <- 0.1
     drawDots(coords, color="green", radius = 0.02)
     drawTexts((1+spacing)*coords, text = seq(nrow(coords)), color="blue")
   }
@@ -185,7 +187,7 @@ buildRegularPoly <- function(coords, polygonsize, vertexsize, exampleEdge = c(1,
     }
   } 
   
-  newPoly <- setPoly(poly$coords, poly$faces, poly$name, debug)
+  newPoly <- setPoly(poly$coords, poly$faces, poly$name, debug=debug)
   
   return(newPoly)
 }
@@ -209,7 +211,7 @@ dual <- function(p, name=paste("dual", p$name), scaling = "edge", debug=F)
     stop(paste("Wrong scaling argument:", scaling))
   }
   
-  pDual <- setPoly(newVertexCoords*scale, newFaces, name, debug)
+  pDual <- setPoly(newVertexCoords*scale, newFaces, name, debug=debug)
   
   return(pDual)
 }
@@ -229,7 +231,7 @@ quasi <- function(p, name=paste("quasi", p$name), debug=F)
   # the other set comes from the faces, using midpoints of their edges
   archiFaces2 <- lapply(p$faces, function(f) { sapply(seq(length(f)), function(j) {return(p$coordPairToEdge[f[j], shiftrotate(f)[j]])})})
   
-  pArchi <- setPoly(archiPoints, c(archiFaces1, archiFaces2), name, debug)
+  pArchi <- setPoly(archiPoints, c(archiFaces1, archiFaces2), name, debug=debug)
   
   return(pArchi)
 }
@@ -282,7 +284,7 @@ truncate <- function(p, name = paste("truncated", p$name), debug=F)
   
   # done!
   trunc2 <- setPoly(coords = as.matrix(newcoords[,1:3]),
-                    faces = c(newfaces$coords, oldfaces), name=name, debug)
+                    faces = c(newfaces$coords, oldfaces), name=name, debug=debug)
   return (trunc2)
 }
 
@@ -373,7 +375,7 @@ rhombic <- function(p, name=paste("rhombic", p$name), debug=F)
   newRhombic <-
     setPoly(coords = newCoords/max(vectorlength(newCoords)), # unit length
             faces = c(squaresFromEdges$f, facesFromOldFaces, facesFromOldVertices),
-            name = name, debug)
+            name = name, debug=debug)
   
   return(newRhombic)
 }
@@ -400,7 +402,7 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
   return(setPoly(coords = rbind(p1$coords, p2$coords),
                  faces = c(p1$faces, lapply(p2$faces, function(f) { return(f+nrow(p1$coords)) })),
                  name,
-                 debug))
+                 debug=debug))
 }
 
 # Create new polyhedron by chopping off the vertices replacing each by a new face
@@ -446,7 +448,7 @@ compose <- function(p1, p2, name=paste("compose", paste(p1$name, p2$name, sep=",
 #     allFaces[[length(allFaces)+1]] <- truncatebedFace
 #   }
 #   
-#   pTruncate <- setPoly(coords = allPoints[,1:3], faces = allFaces, name=name, debug)
+#   pTruncate <- setPoly(coords = allPoints[,1:3], faces = allFaces, name=name, debug=debug)
 #   
 #   return(pTruncate)
 # }

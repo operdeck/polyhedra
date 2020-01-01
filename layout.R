@@ -4,6 +4,11 @@
 # build up layout in batches? eg optimize first 6 then next etc hopefully gives quicker convergence
 # store 2d projection with the 3D solid (??)
 
+# Hull + layout works for greatdodecahedron 
+# TODO: find others for which it works
+# TODO: add simple test for sub-face visibility (ray from origin through middle, intersect something else?)
+# TODO: fix storage of dupe and redundant coords in "setPoly" (test first)
+
 library(ggplot2)
 library(svglite)
 library(data.table)
@@ -100,13 +105,13 @@ positionNextFace <- function(polyhedron3D, edge=NA, placedFaces=c(), level=1, de
   return(face2D)
 }
 
-drawLayout <- function(original, level=length(layout2D), debug=T)
+drawLayout <- function(solid3D, level=length(layout2D), debug=T, colorProvider = rainbow)
 {
-  constructAllFlapjes <- function(level, original)
+  constructAllFlapjes <- function(level, solid3D)
   {
     allConnectionEdges <- sapply(layout2D[1:level], function(l) {return(l$connectionEdge)})
     
-    flapForOneFace <- function(face, original)
+    flapForOneFace <- function(face, solid3D)
     {
       relativeSize <- 1/4 # size relative to edge
       angleDegrees <- 50 # angle of flapje in degrees
@@ -115,7 +120,7 @@ drawLayout <- function(original, level=length(layout2D), debug=T)
       vex2 <- shiftrotate(vex1)
       
       # Index of P1 and P2 for edges that are not used to connect 2D projections
-      edge <- sapply(seq(length(vex1)), function(i){return(original$coordPairToEdge[vex1[i],vex2[i]])})
+      edge <- sapply(seq(length(vex1)), function(i){return(solid3D$coordPairToEdge[vex1[i],vex2[i]])})
       idx1 <- which(!(edge %in% allConnectionEdges))
       idx2 <- (idx1%%length(vex1))+1
       
@@ -133,7 +138,7 @@ drawLayout <- function(original, level=length(layout2D), debug=T)
       return(flap)
     }
     
-    all <- rbindlist(lapply(layout2D[1:level],flapForOneFace,original))
+    all <- rbindlist(lapply(layout2D[1:level],flapForOneFace,solid3D))
     all[, n:=seq(.N), by=edge] # only keep the first for all pairs of flapjes for the same edge
     all <- all[n==1]
     all[, eseq := seq(.N)] # sequential numbering of the edges (not their actual indices)
@@ -141,14 +146,24 @@ drawLayout <- function(original, level=length(layout2D), debug=T)
     return(all)
   }
   
-  colors <- assignColors(original)
+  if (!is.null(solid3D$original)) {
+    colors <- assignColors(solid3D$original, colorProvider = colorProvider)
+  } else {
+    colors <- assignColors(solid3D, colorProvider = colorProvider)
+  }
   
   plotdata <- rbindlist(lapply(layout2D[1:level], function(l) {
-    data.table(x=l$coords2D[,1], 
+    d2 <- data.table(x=l$coords2D[,1], 
                y=l$coords2D[,2], 
                faceReference=l$faceReference, 
-               color=colors[l$faceReference], 
-               vex=original$faces[[l$faceReference]])
+               #color=colors[l$faceReference], 
+               vex=solid3D$faces[[l$faceReference]])
+    if (!is.null(solid3D$original)) {
+      d2[, color := colors[ solid3D$originalFaceMap[l$faceReference] ] ]
+    } else {
+      d2[, color := colors[ l$faceReference ] ]
+    }
+    return(d2)
   }))
   colorMapIdentity <- unique(colors)
   names(colorMapIdentity) <- colorMapIdentity
@@ -168,7 +183,7 @@ drawLayout <- function(original, level=length(layout2D), debug=T)
   p <-ggplot(plotdata, aes(x,y)) 
   
   if (!debug) {
-    flapjes <- constructAllFlapjes(level, original)
+    flapjes <- constructAllFlapjes(level, solid3D)
     flapjesLongFmt <- data.table( x = c(flapjes$P1x, flapjes$P3x, flapjes$P4x, flapjes$P2x),
                                   y = c(flapjes$P1y, flapjes$P3y, flapjes$P4y, flapjes$P2y),
                                   edge = rep(flapjes$eseq, 4))
@@ -193,16 +208,16 @@ drawLayout <- function(original, level=length(layout2D), debug=T)
       geom_vline(xintercept = layout2D[[level]]$layoutMinCoords[1], colour="yellow", linetype="dashed") + 
       geom_vline(xintercept = layout2D[[level]]$layoutMaxCoords[1], colour="yellow", linetype="dashed") +
       theme_minimal() +
-      ggtitle(paste("Layout of", original$name), 
+      ggtitle(paste("Layout of", solid3D$name), 
               subtitle = paste("round",polyStatus[["ncalls"]],"eval=",round(bestEval,5),elapsedTimeToStr()))
   } else {
     p <- p + theme_void() +
-      ggtitle(paste("Layout of", original$name), subtitle = description(original))
+      ggtitle(paste("Layout of", solid3D$name), subtitle = description(solid3D))
   }
   p <- p+theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5))
   
   return(p)
-  #ggsave(file=file.path("layouts",paste0("layout ", original$name, ".svg")), plot=p, width=10, height=10)
+  #ggsave(file=file.path("layouts",paste0("layout ", solid3D$name, ".svg")), plot=p, width=10, height=10)
 }
 
 
@@ -316,7 +331,7 @@ isBoundingCircleOverlap <- function(fig1, fig2)
 # TODO PIP check can be avoided for points on the connection edges
 checkOverlap <- function(nextFace, level, debug=T)
 {
-  spacing <- paste0(rep(" ", level),collapse = "")
+  indentation <- paste0(rep(" ", level),collapse = "")
   # last check if all is well - check if there is no overlap with existing faces
   hasOverlap <- NULL
   for (l in safeseq(level)) {
@@ -360,7 +375,7 @@ checkOverlap <- function(nextFace, level, debug=T)
   if (!is.null(hasOverlap)) {
     logPoly("overlap detected")
     if (debug) {
-      cat(spacing, "overlap", fToStr(nextFace$faceReference), 
+      cat(indentation, "overlap", fToStr(nextFace$faceReference), 
           "with", fToStr(hasOverlap$f), 
           "at", paste(paste0("P", hasOverlap$p),collapse=","), fill=T)
     }
@@ -417,7 +432,7 @@ layoutA4Evaluator <- function(level, min=NULL, max=NULL)
 #' @param maxrounds -1=stop at first layout, 0=keep searching, n = stop after n iterations
 best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = layoutAreaEvaluator, debugLevel=1, maxrounds = 0)
 {
-  spacing <- paste0(rep(" ", level),collapse = "")
+  indentation <- paste0(rep(" ", level),collapse = "")
   if (level == 1) 
   {
     layout2D <<- list()
@@ -449,7 +464,7 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
   allLayoutDigests[[1+length(allLayoutDigests)]] <<- layoutToDigest(level)
   
   if (debugLevel >= 2) {
-    cat(spacing,
+    cat(indentation,
         "Entered level", level, "placed face:", face2D$faceReference, 
         "along edge", eToStr(polyhedron3D, face2D$connectionEdge), 
         "eval =", evaluator(level), fill = T)
@@ -465,7 +480,7 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
   #
   if (evaluator(level) > bestEval) {
     if (debugLevel >= 2) {
-      cat(spacing,"*** early exit **** at level", level,"eval=", evaluator(level), "but best is", bestEval, fill = T)
+      cat(indentation,"*** early exit **** at level", level,"eval=", evaluator(level), "but best is", bestEval, fill = T)
     }
     logPoly("early skips because of eval results")
     return()
@@ -489,11 +504,11 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
       bestEval <<- evaluator(level)
       bestDigest <<- layoutToDigest(level)
       if (debugLevel >= 2) {
-        cat(spacing,"Done with better evaluation! At level", level, "eval=", evaluator(level), fill = T)  
+        cat(indentation,"Done with better evaluation! At level", level, "eval=", evaluator(level), fill = T)  
       }
       if (debugLevel >= 1) {
         cat("Found layout, round",polyStatus[["ncalls"]],"eval=",round(bestEval,5),elapsedTimeToStr(), fill = T)  
-        plot <- drawLayout(original = polyhedron3D, level, debug=T)
+        plot <- drawLayout(solid3D = polyhedron3D, level, debug=T)
         print(plot)
       }
       if (debugLevel >= 3) {
@@ -501,7 +516,7 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
       }
     } else {
       if (debugLevel >= 2) {
-        cat(spacing,"Done but no improvement. At level", level, "eval=", evaluator(level), fill = T)  
+        cat(indentation,"Done but no improvement. At level", level, "eval=", evaluator(level), fill = T)  
       }
     }
   } else {
@@ -513,14 +528,14 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
       layoutDigest <- layoutToDigest(level, edge)
       if (layoutDigest %in% allLayoutDigests) {
         if (debugLevel >= 2) {
-          cat(spacing,"*** skip processing edge", eToStr(polyhedron3D, edge), "at level", level,"layout done already:", layoutDigest, fill = T)
+          cat(indentation,"*** skip processing edge", eToStr(polyhedron3D, edge), "at level", level,"layout done already:", layoutDigest, fill = T)
         }
         logPoly("early skips because of repeated layout")
         next
       }
       
       if (debugLevel >= 2) {
-        cat(spacing,"select edge:", eToStr(polyhedron3D, edge), "from", candidates, fill = T)
+        cat(indentation,"select edge:", eToStr(polyhedron3D, edge), "from", candidates, fill = T)
       }
       
       # place it into position
@@ -552,7 +567,7 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
   }
   
   if (debugLevel >= 2) {
-    cat(spacing,"Returning from level", level, fill = T)
+    cat(indentation,"Returning from level", level, fill = T)
   }
 }
 
@@ -561,11 +576,12 @@ best2DLayout <- function(polyhedron3D, face2D = NULL, level = 1, evaluator = lay
 #' @param poly The 3D solid
 #'
 #' @return A ggplot object
-get2DLayout <- function(poly)
+get2DLayout <- function(poly, colorProvider = rainbow, 
+                        evaluator = layoutAreaEvaluator, debugLevel=0, maxrounds = 5000)
 {
-  best2DLayout(poly, evaluator = layoutA4Evaluator, debugLevel=0, maxrounds = 5000)
+  best2DLayout(poly, evaluator = evaluator, debugLevel=debugLevel, maxrounds = maxrounds)
   digestToLayout(poly, digest = bestDigest)
-  return(drawLayout(original=poly, debug=F))
+  return(drawLayout(solid3D=poly, debug=F, colorProvider=colorProvider))
 }
 
 testLayout <- function()
@@ -634,7 +650,6 @@ segmentation <- function(poly, debug=F, debugPrimaryFace=NA)
   #poly <- greatDodecahedron
   #poly <- greatIcosahedron
   
-  spacing <- 1.1
   #debug<-T
   
   
@@ -839,55 +854,79 @@ drawSegmentation <- function(segments, singleFace = NULL)
 }
 
 # very simple version that assumes each edge segment has a triangle
-hull <- function(poly)
+hull <- function(poly, debug=F)
 {
-  poly <- greatDodecahedron
   seg <- segmentation(poly)  
-  
-  drawInit(TRUE)
-  drawSegmentation(seg)
-  drawInit(TRUE)
-  drawSegmentation(seg, singleFace = 1)
-  
-  face <- 1 # for all faces
-  
-  facePts <- unique(unlist(seg$edges[F1==face | F2==face, c("vex1","vex2")]))
-  
-  # 2D projection
-  # works but not needed currently
-  # face2D <- projectFace(coords3D = seg$coords[facePts,]) 
-  # rownames(face2D) <- facePts
-  # map3D_2Dcoords <- numeric(length = max(max(seg$edges$vex1), max(seg$edges$vex2)))
-  # map3D_2Dcoords[facePts] <- seq_len(length(facePts))
-  # 
-  # drawInit(TRUE)
-  # drawDots(face2D, label = facePts)
-  # drawSegments(face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex1], ],
-  #              face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex2], ],
-  #              color="blue")
-  
-  remainingEdgesForFace <- which(seg$edges[, onEdge & (F1==face | F2==face)])
-  while (length(remainingEdgesForFace) > 0) {
-    currentSegIdx <- remainingEdgesForFace[1]
-    p0 <- seg$edges[currentSegIdx]$vex1
-    p1 <- seg$edges[currentSegIdx]$vex2
-    
-    # find q directly connected to both p0 and p1 to form a triangle at the edge segment
-    q <- setdiff(intersect(
-      unique(unlist(seg$edges[(vex1==p0 | vex2==p0) & (F1==face | F2==face), c("vex1","vex2")])),
-      unique(unlist(seg$edges[(vex1==p1 | vex2==p1) & (F1==face | F2==face), c("vex1","vex2")]))),
-      c(p0,p1))
-    
-    if (length(q) != 1) stop("Expected 1 point to form triangle")
-    
-    if(!isNormalOutwardFacing(seg$coords[c(p0,p1,q),])) {
-      triangles3d(seg$coords[c(p0,p1,q),], color="yellow" )
-    } else {
-      triangles3d(seg$coords[c(q,p1,p0),], color="yellow" ) 
-    }
-    remainingEdgesForFace <- setdiff(remainingEdgesForFace, currentSegIdx)
+
+  if (debug) {
+    originalColors <- assignColors(poly)
+    drawInit(TRUE)
+    drawSegmentation(seg)
+    drawInit(TRUE)
   }
+  
+  if (debug) {
+    clear3d()
+  }
+  newFaces <- list()
+  newToOldFaceMap <- list()
+  for (face in seq_len(length(poly$faces))) {
+    #if (face != 12) next
+    
+    if (debug) drawSegmentation(seg, singleFace = face)
+    
+    facePts <- unique(unlist(seg$edges[F1==face | F2==face, c("vex1","vex2")]))
+    
+    # 2D projection
+    # works but not needed currently
+    # face2D <- projectFace(coords3D = seg$coords[facePts,]) 
+    # rownames(face2D) <- facePts
+    # map3D_2Dcoords <- numeric(length = max(max(seg$edges$vex1), max(seg$edges$vex2)))
+    # map3D_2Dcoords[facePts] <- seq_len(length(facePts))
+    # 
+    # drawInit(TRUE)
+    # drawDots(face2D, label = facePts)
+    # drawSegments(face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex1], ],
+    #              face2D[map3D_2Dcoords[seg$edges[F1==face | F2==face]$vex2], ],
+    #              color="blue")
+    
+    remainingEdgesForFace <- which(seg$edges[, onEdge & (F1==face | F2==face)])
+    while (length(remainingEdgesForFace) > 0) {
+      currentSegIdx <- remainingEdgesForFace[1]
+      p0 <- seg$edges[currentSegIdx]$vex1
+      p1 <- seg$edges[currentSegIdx]$vex2
+      
+      # find q directly connected to both p0 and p1 to form a triangle at the edge segment
+      q <- setdiff(intersect(
+        unique(unlist(seg$edges[(vex1==p0 | vex2==p0) & (F1==face | F2==face), c("vex1","vex2")])),
+        unique(unlist(seg$edges[(vex1==p1 | vex2==p1) & (F1==face | F2==face), c("vex1","vex2")]))),
+        c(p0,p1))
+      
+      if (length(q) != 1) stop("Expected 1 point to form triangle")
+      
+      if(!isNormalOutwardFacing(seg$coords[c(p0,p1,q),])) {
+        newFaces[[length(newFaces)+1]] <- c(p0,p1,q)
+      } else {
+        newFaces[[length(newFaces)+1]] <- c(q,p1,p0)
+      }
+      newToOldFaceMap[[length(newToOldFaceMap)+1]] <- face
+      if (debug) triangles3d(seg$coords[newFaces[[length(newFaces)]],], color=originalColors[face] ) 
+      remainingEdgesForFace <- setdiff(remainingEdgesForFace, currentSegIdx)
+    }
+  }
+  # unique(unlist(newFaces))
+  
+  return (setPoly(coords=seg$coords, faces=newFaces, name=paste("hull", poly$name), debug=F, 
+                  original=poly, originalFaceMap=unlist(newToOldFaceMap)))
 }
+
+testHull <- function()
+{
+  hulled <- hull(greatDodecahedron, debug=F)
+  hulledLayout <- get2DLayout(hulled, colorProvider = heat.colors, debugLevel = 1)
+  print(hulledLayout)
+}
+
 
 testSegmentation <- function()
 {

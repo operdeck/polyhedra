@@ -14,3 +14,9 @@ test_that( "segmentation", {
   # expect_equal(0, sum(rownames(seg$coords)==""))
 })
 
+test_that("hull", {
+  hulled <- hull(greatDodecahedron, debug=F)
+  expect_equal(60, length(hulled$faces)) # 5 triangles for each of the 12 faces
+  expect_equal(72, length(hulled$coords)) # original has 12, adding 5 for each of the 12 faces
+})
+

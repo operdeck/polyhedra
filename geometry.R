@@ -19,6 +19,7 @@
 
 # Mostly 2D and 3D geometry and linear algebra
 
+library(data.table)
 source("utils.R")
 
 crossproduct <- function(v1, v2){
