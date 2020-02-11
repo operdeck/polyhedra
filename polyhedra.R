@@ -463,6 +463,8 @@ name <- function(p)
 
 description <- function(p, debug=F)
 {
+  if ("original" %in% names(p)) p <- p$original
+  
   combineDescriptions <- function(descrs, suffixIdentical = "")
   {
     descrFreqs <- data.table(table(unlist(descrs)), stringsAsFactors = F)[order(-N,V1)]

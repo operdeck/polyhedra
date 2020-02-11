@@ -871,7 +871,7 @@ hull <- function(poly, debug=F)
   newFaces <- list()
   newToOldFaceMap <- list()
   for (face in seq_len(length(poly$faces))) {
-    #if (face != 12) next
+    # if (face != 1) next
     
     if (debug) drawSegmentation(seg, singleFace = face)
     
@@ -891,6 +891,7 @@ hull <- function(poly, debug=F)
     #              color="blue")
     
     remainingEdgesForFace <- which(seg$edges[, onEdge & (F1==face | F2==face)])
+    # print(seg$edges)
     while (length(remainingEdgesForFace) > 0) {
       currentSegIdx <- remainingEdgesForFace[1]
       p0 <- seg$edges[currentSegIdx]$vex1
@@ -902,6 +903,8 @@ hull <- function(poly, debug=F)
         unique(unlist(seg$edges[(vex1==p1 | vex2==p1) & (F1==face | F2==face), c("vex1","vex2")]))),
         c(p0,p1))
       
+      if (debug) cat("Hull triangle", p0, "-", p1, "-", q, fill = T)
+      
       if (length(q) != 1) stop("Expected 1 point to form triangle")
       
       if(!isNormalOutwardFacing(seg$coords[c(p0,p1,q),])) {
@@ -911,7 +914,13 @@ hull <- function(poly, debug=F)
       }
       newToOldFaceMap[[length(newToOldFaceMap)+1]] <- face
       if (debug) triangles3d(seg$coords[newFaces[[length(newFaces)]],], color=originalColors[face] ) 
-      remainingEdgesForFace <- setdiff(remainingEdgesForFace, currentSegIdx)
+      
+      containedEdgeSegments <- which(seg$edges[, onEdge & (F1==face | F2==face) & 
+                                                 ((p0==vex1 & p1==vex2) | (p1==vex1 & q==vex2) | (q==vex1 & p0==vex2) | (p0==vex2 & p1==vex1) | (p1==vex2 & q==vex1) | (q==vex2 & p0==vex1))])
+      # cat("Idx=", currentSegIdx, fill = T)
+      # cat("Contained:", containedEdgeSegments, fill = T)
+      
+      remainingEdgesForFace <- setdiff(remainingEdgesForFace, containedEdgeSegments)
     }
   }
   # unique(unlist(newFaces))
@@ -922,9 +931,19 @@ hull <- function(poly, debug=F)
 
 testHull <- function()
 {
+  # Hull consists of a single triangle at every edge of every face
   hulled <- hull(greatDodecahedron, debug=F)
   hulledLayout <- get2DLayout(hulled, colorProvider = heat.colors, debugLevel = 1)
   print(hulledLayout)
+  ggsave(file=file.path("layouts",
+                        paste0("layout ", hulled$name, ".svg")), plot=hulledLayout, width=10, height=10)
+  
+  # Also triangles at every edge segment but the triangle are not unique
+  hulled <- hull(compose(tetrahedron, dual(tetrahedron)), debug=T)
+  hulledLayout <- get2DLayout(hulled, colorProvider = heat.colors, debugLevel = 1)
+  print(hulledLayout)
+  ggsave(file=file.path("layouts",
+                        paste0("layout ", hulled$name, ".svg")), plot=hulledLayout, width=10, height=10)
 }
 
 
@@ -932,6 +951,7 @@ testSegmentation <- function()
 {
   poly <- greatDodecahedron
   poly <- compose(tetrahedron, dual(tetrahedron))
+  segments <- segmentation(poly)
   #poly <- greatIcosahedron
   
   # library(microbenchmark)
@@ -970,7 +990,7 @@ testSegmentation <- function()
   drawSegments(segments$coords[segments$edges[(!onEdge)]$vex1,], segments$coords[segments$edges[(!onEdge)]$vex2,], color="red")
   
   oldPolyPts <- which(rownames(segments$coords)!="")
-  drawDots(segments$coords, label = oldPolyPts, color="green")
+  drawDots(segments$coords[oldPolyPts,], label = oldPolyPts, color="green")
   newEdgePts <- setdiff(c(segments$edges[(onEdge)]$vex1,segments$edges[(onEdge)]$vex2), oldPolyPts)
   drawDots(segments$coords[newEdgePts,], label = newEdgePts, color="blue")
   newFacePts <- setdiff(setdiff(seq_len(nrow(segments$coords)), newEdgePts), oldPolyPts)
