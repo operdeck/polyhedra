@@ -639,7 +639,7 @@ testRhombic <- function()
 kerst2019 <- function()
 {
   drawInit(new.device = T, width = 1536, height = 1536/sqrt(2))
-  rgl.viewpoint(zoom=0.2)
+  view3d(zoom=0.2)
   compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
                                           polygonsize = 3,
                                           vertexsize = 3,
@@ -656,7 +656,7 @@ kerst2019 <- function()
   {
     return(sample(c("darkgreen","red","gold"), n, replace=T))
   }
-  rgl.bg(back = "filled", color="black")
+  bg3d(back = "filled", color="black")
   clear3d()
   set.seed(1)
   sizeOfUniverse <- 40
