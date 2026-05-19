@@ -1,5 +1,6 @@
 library(rgl)
 library(data.table)
+Sys.setenv(RGL_USE_WEBSHOT = "FALSE")
 source("geometry.R")
 
 # NB gradient colors possible e.g.
@@ -21,14 +22,14 @@ fToStr <- function(f)
 }
 
 # width = 640, height = width
-drawInit <- function(new.device = T, bg = "white", width = 1024, height = width*2/3) {
-  if( new.device | rgl.cur() == 0 ) {
-    rgl.open()
-    par3d(windowRect = 50 + c( 0, 0, width, height ) )
-    rgl.bg(color = bg )
+drawInit <- function(new.device = TRUE, bg = "white", width = 1024, height = width*2/3) {
+  if (new.device || rgl.cur() == 0) {
+    open3d(useNULL = TRUE)
+    par3d(windowRect = 50 + c(0, 0, width, height))
+    bg3d(color = bg)
   }
-  rgl.clear(type = c("shapes", "bboxdeco"))
-  rgl.viewpoint(theta = 30, phi = 30, zoom = 1)
+  clear3d(type = c("shapes", "bboxdeco"))
+  view3d(theta = 30, phi = 30, zoom = 1)
 }
 
 drawSegments <- function(coordsFrom, coordsTo, ...)

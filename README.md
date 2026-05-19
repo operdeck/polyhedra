@@ -35,6 +35,16 @@ Rscript visualize_browser.R icosahedron
 
 This generates and opens an HTML file like `rgl_Icosahedron.html`.
 
+### Render the notebook
+
+If you want to reproduce the full notebook, run:
+
+```r
+rmarkdown::render("polyhedra.Rmd")
+```
+
+That will generate `polyhedra.html` from `polyhedra.Rmd`.
+
 ### Use interactive R / VS Code
 
 ```r
@@ -61,44 +71,60 @@ dodecahedron <- dual(icosahedron)
 
 ## Browser-based visualization
 
-This project can render `rgl` output as HTML widgets in a browser. That is the recommended mode on modern macOS.
+This project now prefers browser-based `rglwidget()` rendering on macOS. That is the recommended mode for the notebook and for interactive use, and it avoids XQuartz.
 
-Install the browser rendering dependency if needed:
+Install dependencies once:
 
 ```r
-install.packages(c("data.table","rgl","testthat","ggplot2","svglite","colorspace","htmlwidgets"))
+install.packages(c(
+  "data.table",
+  "rgl",
+  "ggplot2",
+  "svglite",
+  "colorspace",
+  "htmlwidgets",
+  "rmarkdown"
+))
 ```
 
-Then run:
+Run a browser visualization:
 
 ```bash
 cd /Users/ottoperdeck/dev/polyhedra
 Rscript visualize_browser.R icosahedron
 ```
 
-This creates and opens `rgl_Icosahedron.html` in your browser.
+Render the notebook:
 
-You can also use the new browser helpers from an R session:
+```bash
+cd /Users/ottoperdeck/dev/polyhedra
+Rscript -e 'rmarkdown::render("polyhedra.Rmd")'
+```
+
+That creates `polyhedra.html` from `polyhedra.Rmd` and embeds the interactive 3D widgets.
+
+Use interactive R / VS Code:
 
 ```r
 setwd("/Users/ottoperdeck/dev/polyhedra")
 source("polyhedra.R")
 source("draw.R")
+
 widget <- drawSinglePolyWidget(icosahedron)
 widget
 ```
 
-Or for a list of shapes:
+Or render multiple shapes:
 
 ```r
 widget <- drawPolyWidget(list(tetrahedron, cube, icosahedron))
 widget
 ```
 
-The basic stellated polyhedra ("Kepler-Poinsot polyhedra") have the same coordinates as the simpler ones and can be created from these
+The basic stellated polyhedra ("Kepler-Poinsot polyhedra") have the same coordinates as the simpler ones and can be created from these:
 
 ```r
-greatDodecahedron <- buildRegularPoly(coords = icosahedron$coords, 
+greatDodecahedron <- buildRegularPoly(coords = icosahedron$coords,
                                       polygonsize = 5, vertexsize = 5, exampleEdge = c(1,6),
                                       name = "Great Dodecahedron")
 smallStellatedDodecahedron <- buildRegularPoly(icosahedron$coords,
@@ -114,21 +140,7 @@ greatIcosahedron <- buildRegularPoly(icosahedron$coords,
 greatStellatedDodecahedron <- dual(greatIcosahedron, name = "Great Stellated Dodecahedron", scaling = "vertex")
 ```
 
-![Kepler Poinsots](snapshots/keplerpoinsots.png)
-
-Basic descriptions of the polyhedra (according to Coxeter) are also generated along with the polyhedra.
-
-Next to "dual", several other transformations like "truncate" and "rhombic" are available too, allowing to create a lot of different polyhedra
-
-![Transformations](snapshots/rhombicregulars.png)
-
-There also is a full discovery mode, where you only give a set of coordinates (from one of the other polyhedra) then it "discovers" a family of polyhedra sharing those vertex coordinates.
-
-![Dodecahedron discoveries](snapshots/dodecahedron_discoveries.png)
-
-The above is not a full list. Run the R notebook to create a more complete list.
-
-Next up is a tool to automatically create a 2D layout of the polyhedra.
+Basic descriptions of the polyhedra (according to Coxeter) are also generated along with the polyhedra. Other transformations such as `truncate()` and `rhombic()` are available too.
 
 
 
