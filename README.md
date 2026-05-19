@@ -4,10 +4,95 @@ R tools to create various polyhedra from ground principles.
 
 ![Compounds](snapshots/compound5octahedra.png)
 
+## Getting started
+
+This repository is script-based, so you can use it interactively from R or run the helper script to create browser-rendered polyhedron output.
+
+### Install dependencies
+
+In R:
+
+```r
+install.packages(c(
+  "data.table",
+  "rgl",
+  "testthat",
+  "ggplot2",
+  "svglite",
+  "colorspace",
+  "htmlwidgets"
+))
+```
+
+### Run browser visualization without XQuartz
+
+From the repo root:
+
+```bash
+cd /Users/ottoperdeck/dev/polyhedra
+Rscript visualize_browser.R icosahedron
+```
+
+This generates and opens an HTML file like `rgl_Icosahedron.html`.
+
+### Use interactive R / VS Code
+
+```r
+setwd("/Users/ottoperdeck/dev/polyhedra")
+source("polyhedra.R")
+source("draw.R")
+
+widget <- drawSinglePolyWidget(icosahedron)
+widget
+```
+
+Or draw multiple objects:
+
+```r
+widget <- drawPolyWidget(list(tetrahedron, cube, icosahedron))
+widget
+```
+
 Only the coordinates of the very basic polyhedra are given (tetrahedron, octahedron, icosahedron). The topology of those is not given but "discovered" by the tool. Other polyhedra are created as derived from these. E.g. the dodecahedron is created as
 
 ```r
 dodecahedron <- dual(icosahedron)
+```
+
+## Browser-based visualization
+
+This project can render `rgl` output as HTML widgets in a browser. That is the recommended mode on modern macOS.
+
+Install the browser rendering dependency if needed:
+
+```r
+install.packages(c("data.table","rgl","testthat","ggplot2","svglite","colorspace","htmlwidgets"))
+```
+
+Then run:
+
+```bash
+cd /Users/ottoperdeck/dev/polyhedra
+Rscript visualize_browser.R icosahedron
+```
+
+This creates and opens `rgl_Icosahedron.html` in your browser.
+
+You can also use the new browser helpers from an R session:
+
+```r
+setwd("/Users/ottoperdeck/dev/polyhedra")
+source("polyhedra.R")
+source("draw.R")
+widget <- drawSinglePolyWidget(icosahedron)
+widget
+```
+
+Or for a list of shapes:
+
+```r
+widget <- drawPolyWidget(list(tetrahedron, cube, icosahedron))
+widget
 ```
 
 The basic stellated polyhedra ("Kepler-Poinsot polyhedra") have the same coordinates as the simpler ones and can be created from these

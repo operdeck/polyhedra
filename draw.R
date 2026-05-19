@@ -311,6 +311,23 @@ drawPoly <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debu
   }
   rglwidget(elementId = label)
 }
+
+# Draw a single polyhedron and return an HTML widget for browser-based rendering.
+drawSinglePolyWidget <- function(p, offset=c(0,0,0), label=ifelse(is.null(p$name),"",p$name), debug=F, colorProvider = rainbow)
+{
+  open3d(useNULL = TRUE)
+  drawSinglePoly(p, offset=offset, label=label, debug=debug, colorProvider=colorProvider)
+  return(rglwidget(elementId = label))
+}
+
+# Draw one or more polyhedra in browser mode and return an HTML widget.
+drawPolyWidget <- function(p, start = c(0, 0, 0), delta = c(2, 0, 0), label = "", debug=F, colorProvider = rainbow)
+{
+  open3d(useNULL = TRUE)
+  widget <- drawPoly(p, start = start, delta = delta, label = label, debug = debug, colorProvider = colorProvider)
+  return(widget)
+}
+
 # rgl.close()
 
 drawSkeleton <- function(p)

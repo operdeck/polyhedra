@@ -467,7 +467,14 @@ description <- function(p, debug=F)
   
   combineDescriptions <- function(descrs, suffixIdentical = "")
   {
-    descrFreqs <- data.table(table(unlist(descrs)), stringsAsFactors = F)[order(-N,V1)]
+    if (length(descrs) == 0) {
+      return("")
+    }
+    descrFreqs <- data.table(table(unlist(descrs)), stringsAsFactors = F)
+    if (nrow(descrFreqs) == 0 || !all(c("V1", "N") %in% names(descrFreqs))) {
+      return("")
+    }
+    setorderv(descrFreqs, c("N", "V1"), c(-1, 1))
     if (nrow(descrFreqs) == 1) {
       # all are identical
       if (descrFreqs$N[1] == 1) {
