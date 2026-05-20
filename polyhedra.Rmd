@@ -224,14 +224,10 @@ compound5tetrahedra <- buildRegularPoly(dodecahedron$coords,
                                         name = "5 Tetrahedra")
 ```
 
-```{r, include=F}
-drawInit(F)
-drawPoly(list(compound5tetrahedra, dual(compound5tetrahedra)), 
-         start = c(1, 1, 1), delta = c(2, -0.5, 0), "Compound of 5 Tetrahedra + dual")
-snapshot3d("snapshots/compound5tetrahedra.png", fmt = "png", top = TRUE )
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+drawPolyWidget(list(compound5tetrahedra, dual(compound5tetrahedra)), 
+         start = c(1, 1, 1), delta = c(2, -0.5, 0), label = "Compound of 5 Tetrahedra + dual")
 ```
-
-![5 Tetrahedra with dual](snapshots/compound5tetrahedra.png)
 
 The "quasi" transformation of this turns it into the compound of 5 octahedra.
 
@@ -240,14 +236,10 @@ compound5octahedra <- quasi(compound5tetrahedra, name = "5 Octahedra")
 compound5truncatedTetrahedra <- truncate(compound5tetrahedra)
 ```
 
-```{r, include=F}
-drawInit(F)
-drawPoly(list(compound5octahedra, compound5truncatedTetrahedra),
-         start = c(1, 1, 1), delta = c(2, -0.5, 0), "Transformations of 5 Tetrahedra")
-snapshot3d("snapshots/trafo5octahedra.png", fmt = "png", top = TRUE )
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+drawPolyWidget(list(compound5octahedra, compound5truncatedTetrahedra),
+         start = c(1, 1, 1), delta = c(2, -0.5, 0), label = "Transformations of 5 Tetrahedra")
 ```
-
-![5 Octahedra](snapshots/trafo5octahedra.png)
 
 Combining it with its dual creates 10 tetrahedra.
 
@@ -259,13 +251,9 @@ compound10tetrahedra <- compose(compound5tetrahedra, dual(compound5tetrahedra),
                                name = "10 Tetrahedra")
 ```
 
-```{r, include=F}
-drawInit(F)
-drawPoly(compound10tetrahedra)
-snapshot3d("snapshots/compound10tetrahedra.png", fmt = "png", top = TRUE )
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+drawPolyWidget(compound10tetrahedra)
 ```
-
-![10 Tetrahedra](snapshots/compound10tetrahedra.png)
 
 ## 5 Cubes and derived
 
@@ -284,24 +272,16 @@ moreDodecahedronStellations <- list(compound5Cubes,
                                     quasi(compound5Cubes))
 ```
 
-```{r, include=F}
-drawInit(F)
-drawPoly(moreDodecahedronStellations, start = c(1, 1, 1), delta = c(2, -0.5, 0), label="Stellations in Dodecahedron family")
-snapshot3d("snapshots/compound5cubes.png", fmt = "png", top = TRUE )
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+drawPolyWidget(moreDodecahedronStellations, start = c(1, 1, 1), delta = c(2, -0.5, 0), label = "Stellations in Dodecahedron family")
 ```
-
-![5 Cubes and variations](snapshots/compound5cubes.png)
 
 ## Variation on Quasi Dodecahedron
 
-```{r, include=F}
-drawInit(F)
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 variationOnQuasiDodecahedron <- buildRegularPoly(dodecahedron$coords, 5, 6, c(1, 4), name="Variation on Quasi Dodecahedron")
-drawPoly(variationOnQuasiDodecahedron)
-snapshot3d("snapshots/variationOnQuasiDodecahedron.png", fmt = "png", top = TRUE )
+drawPolyWidget(variationOnQuasiDodecahedron)
 ```
-
-![Variation on Quasi Dodecahedron](snapshots/variationOnQuasiDodecahedron.png)
 
 # Discovery mode
 
@@ -314,13 +294,9 @@ cube_discoveries <- discover(cube, progress = F)
 cube_discoveries$specs
 ```
 
-```{r, include=F}
-drawInit(F)
-drawPoly(cube_discoveries$polyhedra, label = "Discoveries based on cube")
-snapshot3d("snapshots/cube_discoveries.png", fmt = "png", top = TRUE )
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+drawPolyWidget(cube_discoveries$polyhedra, label = "Discoveries based on cube")
 ```
-
-![Discoveries based on cube](snapshots/cube_discoveries.png)
 
 For the tetrahedron and octahedron nothing new emerges either but from the next two a more interesting family of polyhedra arises although unfortunately no new polyhedra relative to the ones shown before.
 
@@ -329,26 +305,18 @@ dodecahedron_discoveries <- discover(dodecahedron, progress = F)
 dodecahedron_discoveries$specs
 ```
 
-```{r, include=F}
-drawInit(F)
-drawPoly(dodecahedron_discoveries$polyhedra, label = "Discoveries based on dodecahedron")
-snapshot3d("snapshots/dodecahedron_discoveries.png", fmt = "png", top = TRUE )
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+drawPolyWidget(dodecahedron_discoveries$polyhedra, label = "Discoveries based on dodecahedron")
 ```
-
-![Discoveries based on dodecahedron](snapshots/dodecahedron_discoveries.png)
 
 ```{r}
 icosahedron_discoveries <- discover(icosahedron, progress = F)
 icosahedron_discoveries$specs
 ```
 
-```{r, include=F}
-drawInit(F)
-drawPoly(icosahedron_discoveries$polyhedra, label = "Discoveries based on icosahedron")
-snapshot3d("snapshots/icosahedron_discoveries.png", fmt = "png", top = TRUE )
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+drawPolyWidget(icosahedron_discoveries$polyhedra, label = "Discoveries based on icosahedron")
 ```
-
-![Discoveries based on icosahedron](snapshots/icosahedron_discoveries.png)
 
 
 # Next steps
