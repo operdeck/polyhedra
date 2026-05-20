@@ -96,7 +96,7 @@ Combining the duals with the originals is sometimes interesting, although in one
 ```{r}
 # Since the combinations of regular solids with their duals are symmetrical, we
 # only apply it to half of them
-combis <- lapply(Regulars[seq(length(Regulars))%%2==1], function(p) { return(compose(p, dual(p))) })
+combis <- lapply(Regulars[seq_along(Regulars)%%2==1], function(p) { return(compose(p, dual(p))) })
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -114,7 +114,7 @@ The transform is symmetric, so quasi(cube) = quasi(octahedron).
 
 ```{r}
 # Here as well, since applying to regular solids only need to do half of them
-quasiarchimedeans <- lapply(Regulars[seq(length(Regulars))%%2==1], quasi)
+quasiarchimedeans <- lapply(Regulars[seq_along(Regulars)%%2==1], quasi)
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -156,7 +156,7 @@ new squares and the existing faces.
 The transformation is symmetric also.
 
 ```{r}
-rhombicregulars <- lapply(c(Platonics[seq(length(Platonics))%%2==1], 
+rhombicregulars <- lapply(c(Platonics[seq_along(Platonics)%%2==1], 
                             list(greatDodecahedron, greatIcosahedron)), rhombic)
 # NB rhombic(smallStellatedDodecahedron) fails currently
 ```
